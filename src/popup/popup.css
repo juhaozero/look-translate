@@ -1,0 +1,25 @@
+.popup-shell {
+  min-height: 100vh;
+  padding: 12px 14px;
+  background: #ffffff;
+  border: 1px solid #e5e5e0;
+}
+
+.popup-header {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.popup-placeholder {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.popup-footer {
+  margin-top: 16px;
+  font-size: 11px;
+  color: #999;
+}

@@ -1,0 +1,15 @@
+# Example only. Real config is created at runtime beside the install dir.
+[general]
+target_lang = "zh-Hans"
+source_lang = "auto"
+hotkey_translate = "Ctrl+Shift+D"
+hotkey_ocr = "Ctrl+Shift+S"
+hotkey_enabled = true
+follow_system_proxy = true
+
+[engine]
+active = "microsoft"
+
+[dictionary]
+enabled = true
+paths = []
