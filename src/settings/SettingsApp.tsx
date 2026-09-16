@@ -58,6 +58,7 @@ export function SettingsApp() {
         engine: {
           ...config.engine,
           microsoft_api_key: normalizeOptionalKey(config.engine.microsoft_api_key),
+          microsoft_region: normalizeOptionalKey(config.engine.microsoft_region),
         },
       };
       const saved = await invoke<AppConfig>("save_config", { config: payload });
@@ -213,6 +214,21 @@ export function SettingsApp() {
                 engine: {
                   ...config.engine,
                   microsoft_api_key: event.target.value,
+                },
+              })
+            }
+          />
+        </label>
+        <label className="settings-field">
+          <span>Microsoft Region（区域资源可选，如 eastasia）</span>
+          <input
+            value={config.engine.microsoft_region ?? ""}
+            onChange={(event) =>
+              setConfig({
+                ...config,
+                engine: {
+                  ...config.engine,
+                  microsoft_region: event.target.value,
                 },
               })
             }

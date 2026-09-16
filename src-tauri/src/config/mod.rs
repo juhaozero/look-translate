@@ -79,6 +79,9 @@ pub struct EngineConfig {
     /// Microsoft Translator subscription key (stored locally only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub microsoft_api_key: Option<String>,
+    /// Required for regional / multi-service Azure resources.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub microsoft_region: Option<String>,
 }
 
 impl Default for EngineConfig {
@@ -86,6 +89,7 @@ impl Default for EngineConfig {
         Self {
             active: "microsoft".into(),
             microsoft_api_key: None,
+            microsoft_region: None,
         }
     }
 }

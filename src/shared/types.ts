@@ -15,6 +15,25 @@ export type HotkeyStatus = {
   registered: boolean;
 };
 
+export type CapturePayload = {
+  text: string;
+  empty: boolean;
+  error?: string | null;
+  capturedAtMs: number;
+};
+
+export type TranslationPayload = {
+  status: "loading" | "ok" | "error" | string;
+  sourceText: string;
+  translatedText?: string | null;
+  engine?: string | null;
+  sourceLang: string;
+  targetLang: string;
+  detectedSourceLang?: string | null;
+  error?: string | null;
+  cached?: boolean;
+};
+
 export type AppConfig = {
   general: {
     target_lang: string;
@@ -27,6 +46,7 @@ export type AppConfig = {
   engine: {
     active: string;
     microsoft_api_key?: string | null;
+    microsoft_region?: string | null;
   };
   dictionary: {
     enabled: boolean;
@@ -47,6 +67,7 @@ export function emptyConfig(): AppConfig {
     engine: {
       active: "microsoft",
       microsoft_api_key: null,
+      microsoft_region: null,
     },
     dictionary: {
       enabled: true,

@@ -13,7 +13,11 @@ use tauri::{
     Manager, WindowEvent,
 };
 
+use crate::cache::TranslationCacheState;
+use crate::capture::CaptureState;
+use crate::commands::window_cmd::PopupUiState;
 use crate::config::{load_or_init, resolve_paths, ConfigState};
+use crate::translate::TranslationState;
 use crate::tray_state::TrayHotkeyToggle;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -25,10 +29,14 @@ pub fn run() {
             commands::window_cmd::show_settings_window,
             commands::window_cmd::show_popup_window,
             commands::window_cmd::hide_popup_window,
+            commands::window_cmd::copy_text,
             commands::config_cmd::get_app_paths,
             commands::config_cmd::get_config,
             commands::config_cmd::save_config,
             commands::hotkey_cmd::get_hotkey_status,
+            commands::capture_cmd::get_last_capture,
+            commands::translate_cmd::get_last_translation,
+            commands::translate_cmd::translate_text,
         ])
         .setup(|app| {
             let paths = resolve_paths().map_err(|e| {
@@ -39,6 +47,10 @@ pub fn run() {
             })?;
             let hotkey_enabled = config.general.hotkey_enabled;
             app.manage(ConfigState::new(paths, config));
+            app.manage(CaptureState::default());
+            app.manage(TranslationState::default());
+            app.manage(TranslationCacheState::default());
+            app.manage(PopupUiState::default());
 
             if let Err(err) = hotkey::apply_from_state(app.handle()) {
                 eprintln!("[look-translate] hotkey apply failed on startup: {err}");
@@ -80,12 +92,16 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
                 // Keep process alive via tray; hide windows instead of destroying them.
                 let _ = window.hide();
                 api.prevent_close();
             }
+            WindowEvent::Focused(false) if window.label() == "popup" => {
+                commands::window_cmd::maybe_hide_popup_on_blur(window.app_handle());
+            }
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("error while running Look Translate");

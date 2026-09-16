@@ -6,7 +6,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use crate::commands::window_cmd;
+use crate::commands::capture_cmd;
 use crate::config::{AppConfig, ConfigState};
 
 #[allow(dead_code)]
@@ -43,9 +43,9 @@ pub fn apply(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
     let shortcut_str = config.general.hotkey_translate.trim().to_string();
 
     gs.on_shortcut(shortcut, move |app, _shortcut, event| {
-        if event.state == ShortcutState::Pressed {
-            // Phase 1 step 3: show popup. Capture/translate pipeline comes next.
-            let _ = window_cmd::open_popup(app);
+        // Use Released so Ctrl/Shift from the hotkey are already up before Ctrl+C.
+        if event.state == ShortcutState::Released {
+            capture_cmd::run_capture_and_show_popup(app);
         }
     })
     .map_err(|e| format!("注册热键 `{shortcut_str}` 失败（可能被占用）: {e}"))?;

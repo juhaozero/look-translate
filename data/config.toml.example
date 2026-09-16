@@ -10,6 +10,7 @@ follow_system_proxy = true
 [engine]
 active = "microsoft"
 # microsoft_api_key = "your-key"
+# microsoft_region = "eastasia"  # regional / multi-service resources only
 
 [dictionary]
 enabled = true

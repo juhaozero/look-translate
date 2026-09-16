@@ -21,4 +21,4 @@ npm run tauri dev
 
 ## 当前进度
 
-Phase 1 第 3 步已完成：全局热键。下一步：剪贴板取词。
+Phase 1 第 7 步已完成：翻译 LRU 缓存。下一步：MDict 词库补充。
