@@ -17,7 +17,9 @@ export function PopupApp() {
   return (
     <main className="popup-shell">
       <header className="popup-header">划词翻译</header>
-      <p className="popup-placeholder">译文区域（Phase 1 后续接入）</p>
+      <p className="popup-placeholder">
+        按划词热键可打开本浮层（下一步将接入取词与翻译）。
+      </p>
       {info ? (
         <footer className="popup-footer">
           {info.name} · {info.version} · {info.phase}

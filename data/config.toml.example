@@ -1,4 +1,4 @@
-# Example only. Real config is created at runtime beside the install dir.
+# Example only. Runtime file is created next to the executable under `data/config.toml`.
 [general]
 target_lang = "zh-Hans"
 source_lang = "auto"
@@ -9,6 +9,7 @@ follow_system_proxy = true
 
 [engine]
 active = "microsoft"
+# microsoft_api_key = "your-key"
 
 [dictionary]
 enabled = true

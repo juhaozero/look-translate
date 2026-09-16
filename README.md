@@ -21,4 +21,4 @@ npm run tauri dev
 
 ## 当前进度
 
-Phase 1 第 1 步已完成：脚手架（托盘 + 双窗口骨架）。下一步：配置 `data/config.toml`。
+Phase 1 第 3 步已完成：全局热键。下一步：剪贴板取词。

@@ -62,8 +62,19 @@ look-translate/
 
 ## 核心模块职责
 
-详见路线图分期实现。脚手架阶段仅保留模块目录与空实现，业务在后续 Phase 落地。
+详见路线图分期实现。已落地模块见下方；其余目录仍为骨架。
 
 ## 配置（`data/config.toml`）
 
-安装目录旁便携 `data/`；密钥只存本地。详见 `docs/product-decisions.md`。
+- **路径**：`{executable_dir}/data/config.toml`（开发时即 `src-tauri/target/debug/data/`）
+- **启动**：目录不存在则创建；文件不存在则写入默认配置
+- **命令**：`get_app_paths` / `get_config` / `save_config`
+- **字段**：`general`（语言/热键/代理）、`engine`（active + microsoft_api_key）、`dictionary`（enabled + paths）
+- 示例见仓库根目录 `data/config.toml.example`；密钥勿提交
+
+## 热键
+
+- 插件：`tauri-plugin-global-shortcut`
+- 默认：`Ctrl+Shift+D`；`hotkey_enabled` 总开关；保存配置或托盘「启用热键」后重新注册
+- 当前触发：打开 `popup` 浮层（取词/翻译在后续步骤接入）
+- 命令：`get_hotkey_status`
