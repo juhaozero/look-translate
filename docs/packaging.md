@@ -36,6 +36,14 @@ src-tauri/target/debug/data/
 
 首次启动会创建目录并写入默认配置。示例见仓库 `data/config.toml.example`（勿把真实 Key 提交进 Git）。
 
+推荐离线词库（可选）安装到：
+
+```text
+{executable_dir}/data/dicts/ecdict.mdx
+```
+
+配置中写相对路径 `dicts/ecdict.mdx`（相对 `data/`）。设置页「安装 ECDICT 推荐词典」会从 GitHub Release 下载并解压；**不随安装包预装**。
+
 ## 卸载策略
 
 1. 卸载程序会移除安装目录（含 exe、资源）。

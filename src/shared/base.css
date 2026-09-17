@@ -50,3 +50,67 @@ code {
     Consolas,
     monospace;
 }
+
+/* Shared engine brand icons */
+.engine-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+.engine-icon img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
+}
+
+.engine-icon-sm {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.engine-icon-sm img {
+  width: 14px;
+  height: 14px;
+}
+
+.engine-icon-web {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: #212529;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  border: 1.5px solid #fff;
+  box-sizing: border-box;
+}
+
+.engine-icon-sm .engine-icon-web {
+  right: -6px;
+  bottom: -5px;
+  min-width: 12px;
+  height: 12px;
+  font-size: 7px;
+  line-height: 12px;
+  padding: 0 2px;
+}

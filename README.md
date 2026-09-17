@@ -1,4 +1,4 @@
-# look-translate
+# Look Translate
 
 Windows 划词翻译小工具（Tauri 2 + React）。
 
@@ -18,7 +18,7 @@ npm install
 npm run tauri:dev
 ```
 
-默认托盘常驻：菜单含「设置 / 退出」。浮层窗口 `popup`、设置窗口 `settings`。
+托盘常驻：左键双击打开设置；菜单含「设置 / 启用热键 / 退出」。浮层窗口 `popup`、设置窗口 `settings`。
 
 ## 打包
 

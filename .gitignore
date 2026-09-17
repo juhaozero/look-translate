@@ -16,7 +16,7 @@ dist-ssr
 /data/*
 !/data/.gitkeep
 !/data/config.toml.example
-
+src-tauri/target
 # Editor
 .vscode/*
 !.vscode/extensions.json

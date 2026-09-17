@@ -9,8 +9,9 @@ Windows 托盘常驻的划词翻译小工具：全局快捷键取词 → Rust �
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  UI (React + Tauri WebView)                             │
-│  ├── popup/     结果浮层（译文、词库、复制、改语言重译）   │
-│  └── settings/  设置页（引擎、Key、热键、词典、目标语）   │
+│  ├── popup/       结果浮层（译文、词库、复制、改语言重译） │
+│  ├── ocr-select/  OCR 框选层（拖拽选区）                   │
+│  └── settings/    设置页（引擎、Key、热键、词典、目标语） │
 └──────────────────────────┬──────────────────────────────┘
                            │ invoke / events
 ┌──────────────────────────▼──────────────────────────────┐
@@ -96,7 +97,9 @@ look-translate/
 ## OCR（独立热键）
 
 - 默认热键：`Ctrl+Shift+S`（可改）；与划词热键不可相同
-- 指针附近固定矩形截屏 → `Windows.Media.Ocr` → 同一翻译/词典流水线
+- 热键先截当前显示器快照，再打开透明 `ocr-select` 框选层；预标指针附近约 480×160 建议区
+- 拖拽重选 / Enter 确认 / Esc 取消 → 从快照裁剪（避免截到遮罩）→ `Windows.Media.Ocr` → 同一翻译/词典流水线
+- 命令：`get_ocr_region_hint` / `confirm_ocr_region` / `cancel_ocr_select`
 - `source=ocr`；与剪贴板路径互不兜底
 - 需系统已安装 OCR 语言包
 
@@ -127,6 +130,8 @@ look-translate/
 
 - 仅短词：≤30 字符 **且** ≤3 token，且无换行
 - 配置 `dictionary.paths` 只查**第一本**；可为 `.mdx` 文件或含 `.mdx` 的目录
+- **相对路径**相对安装目录旁 `data/`（推荐内置路径：`dicts/ecdict.mdx`）
+- 设置页可一键下载 ECDICT（`ecdict-mdx-headless-28.zip`）到 `data/dicts/ecdict.mdx`，**不进安装包**
 - `mdict-rs` 解析；释义 HTML → 纯文本；不加载 `.mdd`
 - 翻译失败时若短词命中词库，仍展示词典区
 - 保存配置后使已打开词典失效并按需重开
@@ -135,7 +140,7 @@ look-translate/
 
 - 分区：语言 / 引擎 / 热键 / 词典 / 数据位置
 - 语言与引擎用下拉；Microsoft Key/Region 条件展示
-- 词典支持选择 `.mdx` 文件或文件夹（`tauri-plugin-dialog`）
+- 词典：安装推荐 ECDICT、选择 `.mdx` / 文件夹（`tauri-plugin-dialog`）
 - 未保存标记、重新加载、保存校验与热键注册状态提示
 - 数据位置展示便携路径，并提示 NSIS 卸载备份策略
 

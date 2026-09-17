@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use arboard::Clipboard;
 use enigo::{Enigo, Mouse, Settings};
-use tauri::{AppHandle, Manager, PhysicalPosition, Position, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow};
 
 /// Tracks when the popup was last shown to ignore spurious early blur events.
 #[derive(Default)]
@@ -47,6 +47,68 @@ pub fn hide_popup(app: &AppHandle) -> Result<(), String> {
         .get_webview_window("popup")
         .ok_or_else(|| "popup window not found".to_string())?;
     window.hide().map_err(|e| e.to_string())
+}
+
+/// Snapshot the cursor monitor, then cover it with the OCR region picker.
+pub fn open_ocr_select(app: &AppHandle) -> Result<(), String> {
+    use crate::ocr::{begin_ocr_session, OcrSessionState};
+
+    let window = app
+        .get_webview_window("ocr-select")
+        .ok_or_else(|| "ocr-select window not found".to_string())?;
+
+    let (cx, cy) = cursor_position()?;
+    let (x, y, width, height) = monitor_bounds_for_point(app, cx, cy)?;
+
+    // Capture BEFORE showing the overlay so OCR never reads the dim mask.
+    let session = begin_ocr_session(x, y, width, height)?;
+    if let Some(state) = app.try_state::<OcrSessionState>() {
+        state.store(session);
+    } else {
+        return Err("OCR 会话状态未初始化".into());
+    }
+
+    window
+        .set_size(Size::Physical(PhysicalSize { width, height }))
+        .map_err(|e| e.to_string())?;
+    window
+        .set_position(Position::Physical(PhysicalPosition { x, y }))
+        .map_err(|e| e.to_string())?;
+    window.set_always_on_top(true).map_err(|e| e.to_string())?;
+    show_window(&window)?;
+    let _ = app.emit("ocr-select-opened", ());
+    Ok(())
+}
+
+pub fn hide_ocr_select(app: &AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("ocr-select")
+        .ok_or_else(|| "ocr-select window not found".to_string())?;
+    window.hide().map_err(|e| e.to_string())
+}
+
+fn monitor_bounds_for_point(
+    app: &AppHandle,
+    cx: i32,
+    cy: i32,
+) -> Result<(i32, i32, u32, u32), String> {
+    let monitors = app.available_monitors().map_err(|e| e.to_string())?;
+    let monitor = monitors
+        .into_iter()
+        .find(|m| {
+            let pos = m.position();
+            let size = m.size();
+            cx >= pos.x
+                && cy >= pos.y
+                && cx < pos.x + size.width as i32
+                && cy < pos.y + size.height as i32
+        })
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .ok_or_else(|| "未找到可用显示器".to_string())?;
+
+    let pos = monitor.position();
+    let size = monitor.size();
+    Ok((pos.x, pos.y, size.width, size.height))
 }
 
 /// Hide popup on blur, unless it was just shown (avoids flicker on open).

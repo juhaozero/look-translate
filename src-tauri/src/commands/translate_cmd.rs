@@ -46,9 +46,15 @@ pub async fn run_translate(
         req.text.clone(),
     );
 
-    let dict_entry = app
-        .try_state::<DictionaryState>()
-        .and_then(|state| lookup_short_word(&state, &config, &req.text));
+    let dict_entry = {
+        let data_dir = app
+            .try_state::<ConfigState>()
+            .map(|state| state.paths.data_dir.clone());
+        app.try_state::<DictionaryState>().and_then(|state| {
+            let dir = data_dir?;
+            lookup_short_word(&state, &config, &dir, &req.text)
+        })
+    };
 
     if let Some(cache) = app.try_state::<TranslationCacheState>() {
         if let Some(cached) = cache.get(&cache_key) {

@@ -14,6 +14,12 @@ impl TranslationState {
         }
     }
 
+pub fn clear(&self) {
+        if let Ok(mut guard) = self.last.write() {
+            *guard = None;
+        }
+    }
+
     pub fn latest(&self) -> Option<TranslationPayload> {
         self.last.read().ok().and_then(|g| g.clone())
     }

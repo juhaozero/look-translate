@@ -11,7 +11,7 @@ use serde::Serialize;
 
 pub const MAX_CAPTURE_CHARS: usize = 8_000;
 /// Apps often deliver clipboard text asynchronously after Ctrl+C.
-pub const CAPTURE_TIMEOUT: Duration = Duration::from_millis(900);
+pub const CAPTURE_TIMEOUT: Duration = Duration::from_millis(1_200);
 pub const CAPTURE_POLL: Duration = Duration::from_millis(25);
 pub const MARKER_PREFIX: &str = "__look_translate_marker__";
 
@@ -122,14 +122,22 @@ fn capture_selection_windows() -> Result<String, String> {
     thread::sleep(Duration::from_millis(40));
 
     // Give the foreground app a beat after the global hotkey is released.
-    thread::sleep(Duration::from_millis(40));
+    thread::sleep(Duration::from_millis(50));
 
     let mut enigo = Enigo::new(&Settings::default())
         .map_err(|e| format!("初始化按键模拟失败: {e}"))?;
 
-    // Debug builds are console-subsystem; synthesizing Ctrl+C would otherwise
-    // deliver CTRL_C_EVENT to our own console (flash / "Terminate batch?").
+    // Detach from any console so synthesized Ctrl+C is not delivered as
+    // CTRL_C_EVENT to this process (debug `cargo run` / `tauri:dev` console flash).
+    let _console_guard = DetachConsole::detach();
+
+    // Also ignore CTRL_C if we are still attached somehow.
     let _suppress_ctrl_c = SuppressConsoleCtrlC::install();
+
+    // Ensure modifiers from the global hotkey are up (Ctrl+Shift+C would not copy).
+    for key in [Key::LShift, Key::RShift, Key::Alt, Key::Meta] {
+        let _ = enigo.key(key, Release);
+    }
 
     // IMPORTANT: do NOT use Key::Unicode('c') — on Windows that becomes
     // KEYEVENTF_UNICODE / VK_PACKET and does not trigger Ctrl+C copy.
@@ -146,18 +154,20 @@ fn capture_selection_windows() -> Result<String, String> {
         .or_else(|_| enigo.key(Key::Control, Release))
         .map_err(|e| format!("模拟 Ctrl 松开失败: {e}"))?;
 
-    // Copy is async in many apps; wait a moment before polling.
-    // Keep the Ctrl+C suppressor alive across this settle window.
-    thread::sleep(Duration::from_millis(30));
-    drop(_suppress_ctrl_c);
+    // Keep suppressor + detached console across settle + poll window.
+    thread::sleep(Duration::from_millis(40));
 
     let raw = match poll_clipboard_change(&mut clipboard, &marker) {
         Ok(text) => text,
         Err(err) => {
+            drop(_suppress_ctrl_c);
+            drop(_console_guard);
             restore_clipboard(&mut clipboard, previous_text.as_deref());
             return Err(err);
         }
     };
+    drop(_suppress_ctrl_c);
+    drop(_console_guard);
     restore_clipboard(&mut clipboard, previous_text.as_deref());
 
     normalize_captured_text(&raw)
@@ -252,6 +262,36 @@ unsafe extern "system" fn ignore_console_ctrl(ctrl_type: u32) -> windows::core::
         true.into()
     } else {
         false.into()
+    }
+}
+
+/// Temporarily detach from the parent/debug console so Ctrl+C does not flash CMD.
+#[cfg(windows)]
+struct DetachConsole {
+    had_console: bool,
+}
+
+#[cfg(windows)]
+impl DetachConsole {
+    fn detach() -> Self {
+        use windows::Win32::System::Console::{FreeConsole, GetConsoleWindow};
+        use windows::Win32::Foundation::HWND;
+
+        let had_console = unsafe { GetConsoleWindow() != HWND::default() };
+        if had_console {
+            let _ = unsafe { FreeConsole() };
+        }
+        Self { had_console }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for DetachConsole {
+    fn drop(&mut self) {
+        // Do not re-attach: re-attaching to the parent console mid-session can
+        // bring the flash back on the next capture. Debug logs still go to the
+        // original cargo/tauri terminal via inherited handles when present.
+        let _ = self.had_console;
     }
 }
 

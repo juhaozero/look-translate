@@ -34,6 +34,21 @@
         "minHeight": 520,
         "resizable": true,
         "visible": false
+      },
+      {
+        "label": "ocr-select",
+        "title": "OCR 选区",
+        "url": "index.html?window=ocr-select",
+        "width": 800,
+        "height": 600,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": true,
+        "shadow": false
       }
     ],
     "security": {
@@ -52,7 +67,7 @@
     ],
     "publisher": "Look Translate",
     "shortDescription": "Windows 划词翻译小工具",
-    "longDescription": "划词翻译、可配置翻译引擎、可选本地 MDict 词库补充。配置保存在安装目录旁的 data/ 便携目录。",
+    "longDescription": "Windows 划词翻译小工具。支持划词翻译、可配置翻译引擎、可选本地 MDict 词库",
     "copyright": "Copyright © 2026",
     "category": "Utility",
     "windows": {

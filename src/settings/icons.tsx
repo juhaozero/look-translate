@@ -6,23 +6,19 @@ export function IconApp({ className }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 40 40" aria-hidden="true">
       <defs>
-        <linearGradient id="lt-app-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#12b886" />
-          <stop offset="100%" stopColor="#228be6" />
+        <linearGradient id="lt-brand-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#A7F3D0" />
+          <stop offset="55%" stopColor="#93C5FD" />
+          <stop offset="100%" stopColor="#60A5FA" />
         </linearGradient>
       </defs>
-      <rect width="40" height="40" rx="10" fill="url(#lt-app-g)" />
-      <text
-        x="20"
-        y="26"
-        textAnchor="middle"
-        fill="#fff"
-        fontSize="18"
-        fontFamily="Segoe UI, Microsoft YaHei, sans-serif"
-        fontWeight="700"
-      >
-        文
-      </text>
+      <rect width="40" height="40" rx="10" fill="url(#lt-brand-g)" />
+      {/* Back bubble */}
+      <rect x="7" y="9" width="18" height="13" rx="6" fill="#fff" opacity="0.88" />
+      {/* Front bubble */}
+      <rect x="15" y="17" width="18" height="13" rx="6" fill="#fff" />
+      {/* Tail on front bubble */}
+      <path d="M18 29.5 16 34.5 22.5 29.5Z" fill="#fff" />
     </svg>
   );
 }

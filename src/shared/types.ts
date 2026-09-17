@@ -1,12 +1,16 @@
 export type AppInfo = {
   name: string;
   version: string;
-  phase: string;
+  description: string;
 };
 
 export type AppPaths = {
   dataDir: string;
   configPath: string;
+  dictsDir: string;
+  recommendedDictPath: string;
+  recommendedDictRelative: string;
+  recommendedDictPresent: boolean;
 };
 
 export type HotkeyStatus = {
@@ -40,6 +44,13 @@ export type TranslationPayload = {
   cached?: boolean;
   dictionaryText?: string | null;
   dictionarySource?: string | null;
+};
+
+export type InstallRecommendedDictResult = {
+  status: "already_present" | "installed" | string;
+  relativePath: string;
+  absolutePath: string;
+  config: AppConfig;
 };
 
 export type AppConfig = {

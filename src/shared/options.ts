@@ -17,26 +17,35 @@ export const SOURCE_LANGS = [
 export const ENGINES = [
   {
     value: "microsoft",
-    label: "Microsoft Translator",
+    label: "Microsoft 翻译",
+    subtitle: "需 Azure Key",
     hint: "需填写 Azure Translator Key；区域资源再填 Region",
+    configurable: true,
   },
   {
     value: "microsoft_web",
-    label: "Microsoft / Bing（免费/网页）",
+    label: "必应翻译",
+    subtitle: "免费网页接口",
     hint: "非官方 Bing 网页接口，无需 Key；可能限流或失效",
+    configurable: false,
   },
   {
     value: "google",
-    label: "Google Cloud Translation",
+    label: "Google 翻译",
+    subtitle: "Cloud API，需 Key",
     hint: "需填写 Google Cloud Translation API v2 Key",
+    configurable: true,
   },
   {
     value: "google_web",
-    label: "Google（免费/网页）",
+    label: "Google 翻译（网页）",
+    subtitle: "免费接口，可能限流",
     hint: "非官方 gtx 接口，无需 Key；可能限流或失效",
+    configurable: false,
   },
 ] as const;
 
+export type EngineId = (typeof ENGINES)[number]["value"];
 export type LangOption = (typeof TARGET_LANGS)[number];
 
 /** Map legacy Microsoft-style tags used in older configs. */

@@ -3,14 +3,20 @@ import {
   useId,
   useMemo,
   useState,
-  type ReactNode,
   type ComponentType,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { AppConfig, AppInfo, AppPaths, HotkeyStatus } from "../shared/types";
+import type {
+  AppConfig,
+  AppInfo,
+  AppPaths,
+  HotkeyStatus,
+  InstallRecommendedDictResult,
+} from "../shared/types";
 import { emptyConfig } from "../shared/types";
 import { ENGINES, SOURCE_LANGS, TARGET_LANGS, normalizeLangCode } from "../shared/options";
+import { EngineIcon, IconEdit } from "../shared/EngineIcon";
 import { HotkeyRecorder } from "./HotkeyRecorder";
 import {
   IconAbout,
@@ -65,6 +71,8 @@ export function SettingsApp() {
   );
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [installingDict, setInstallingDict] = useState(false);
+  const [editingEngine, setEditingEngine] = useState<string | null>(null);
 
   const dirty = useMemo(
     () => serializeConfig(config) !== savedSnapshot && savedSnapshot.length > 0,
@@ -97,6 +105,12 @@ export function SettingsApp() {
   useEffect(() => {
     void loadAll();
   }, []);
+
+  useEffect(() => {
+    if (nav !== "service") {
+      setEditingEngine(null);
+    }
+  }, [nav]);
 
   async function openPopupPreview() {
     try {
@@ -170,6 +184,34 @@ export function SettingsApp() {
     }
   }
 
+  async function installRecommendedDict() {
+    if (installingDict) return;
+    setInstallingDict(true);
+    setStatus(null);
+    try {
+      const result = await invoke<InstallRecommendedDictResult>(
+        "install_recommended_dict",
+      );
+      setConfig(result.config);
+      setSavedSnapshot(serializeConfig(result.config));
+      const appPaths = await invoke<AppPaths>("get_app_paths");
+      setPaths(appPaths);
+      const msg =
+        result.status === "already_present"
+          ? `推荐词典已存在，已写入配置：${result.relativePath}`
+          : `推荐词典已安装：${result.relativePath}（约 70MB，来源 ECDICT）`;
+      setStatus({ tone: "ok", text: msg });
+    } catch (error) {
+      console.error(error);
+      setStatus({
+        tone: "err",
+        text: `安装推荐词典失败：${String(error)}`,
+      });
+    } finally {
+      setInstallingDict(false);
+    }
+  }
+
   function updateGeneral<K extends keyof AppConfig["general"]>(
     key: K,
     value: AppConfig["general"][K],
@@ -180,9 +222,33 @@ export function SettingsApp() {
     });
   }
 
-  const engineHint =
-    ENGINES.find((item) => item.value === config.engine.active)?.hint ??
-    "请选择已支持的翻译引擎";
+  function selectEngine(engineId: string) {
+    if (config.engine.active === engineId) {
+      return;
+    }
+    setConfig({
+      ...config,
+      engine: { ...config.engine, active: engineId },
+    });
+    setStatus(null);
+  }
+
+  function onEngineToggle(engineId: string, turnOn: boolean) {
+    if (turnOn) {
+      selectEngine(engineId);
+      return;
+    }
+    if (config.engine.active === engineId) {
+      setStatus({
+        tone: "err",
+        text: "请先打开其他引擎，不能关闭当前唯一服务",
+      });
+    }
+  }
+
+  function toggleEngineEditor(engineId: string) {
+    setEditingEngine((current) => (current === engineId ? null : engineId));
+  }
 
   return (
     <div className="settings-layout">
@@ -291,7 +357,7 @@ export function SettingsApp() {
                   onChange={(next) => updateGeneral("hotkey_ocr", next)}
                 />
                 <p className="settings-panel-foot">
-                  划词热键走剪贴板 Ctrl+C；OCR 热键截取指针附近固定区域识别，二者互不兜底。
+                  划词热键走剪贴板;OCR 热键截取指针附近固定区域识别，二者互不兜底。
                 </p>
               </section>
               <section className="settings-panel">
@@ -327,85 +393,155 @@ export function SettingsApp() {
           ) : null}
 
           {nav === "service" ? (
-            <>
-              <section className="settings-panel">
-                <SelectRow
-                  label="翻译引擎"
-                  value={config.engine.active}
-                  options={ENGINES.map((engine) => ({
-                    value: engine.value,
-                    label: engine.label,
-                  }))}
-                  onChange={(value) =>
-                    setConfig({
-                      ...config,
-                      engine: { ...config.engine, active: value },
-                    })
-                  }
-                />
-                <p className="settings-panel-foot">{engineHint}</p>
-              </section>
-              {config.engine.active === "microsoft" ? (
-                <section className="settings-panel">
-                  <FieldRow label="API Key">
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      className="settings-input"
-                      placeholder="Azure Translator 订阅密钥"
-                      value={config.engine.microsoft_api_key ?? ""}
-                      onChange={(event) =>
-                        setConfig({
-                          ...config,
-                          engine: {
-                            ...config.engine,
-                            microsoft_api_key: event.target.value,
-                          },
-                        })
+            <section className="service-list-shell" aria-label="翻译服务">
+              <ul className="service-list">
+                {ENGINES.map((engine) => {
+                  const active = config.engine.active === engine.value;
+                  const expanded = editingEngine === engine.value;
+                  return (
+                    <li
+                      key={engine.value}
+                      className={
+                        active
+                          ? "service-card is-active"
+                          : "service-card"
                       }
-                    />
-                  </FieldRow>
-                  <FieldRow label="Region">
-                    <input
-                      className="settings-input"
-                      placeholder="如 eastasia；全球资源可留空"
-                      value={config.engine.microsoft_region ?? ""}
-                      onChange={(event) =>
-                        setConfig({
-                          ...config,
-                          engine: {
-                            ...config.engine,
-                            microsoft_region: event.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </FieldRow>
-                </section>
-              ) : null}
-              {config.engine.active === "google" ? (
-                <section className="settings-panel">
-                  <FieldRow label="API Key">
-                    <input
-                      type="password"
-                      autoComplete="off"
-                      className="settings-input"
-                      placeholder="Google Cloud Translation API Key"
-                      value={config.engine.google_api_key ?? ""}
-                      onChange={(event) =>
-                        setConfig({
-                          ...config,
-                          engine: {
-                            ...config.engine,
-                            google_api_key: event.target.value,
-                          },
-                        })
-                      }
-                    />
-                  </FieldRow>
-                </section>
-              ) : null}
-            </>
+                    >
+                      <div className="service-card-row">
+                        <button
+                          type="button"
+                          className="service-card-main"
+                          onClick={() => selectEngine(engine.value)}
+                        >
+                          <EngineIcon
+                            engine={engine.value}
+                            className="service-engine-icon"
+                          />
+                          <span className="service-engine-text">
+                            <span className="service-engine-name">
+                              {engine.label}
+                            </span>
+                            <span className="service-engine-sub">
+                              {engine.subtitle}
+                            </span>
+                          </span>
+                        </button>
+                        <div className="service-card-actions">
+                          <button
+                            type="button"
+                            className={
+                              active
+                                ? "settings-switch is-on"
+                                : "settings-switch"
+                            }
+                            role="switch"
+                            aria-checked={active}
+                            aria-label={`将 ${engine.label} 设为当前引擎`}
+                            onClick={() =>
+                              onEngineToggle(engine.value, !active)
+                            }
+                          >
+                            <span className="settings-switch-thumb" />
+                          </button>
+                          {engine.configurable ? (
+                            <button
+                              type="button"
+                              className={
+                                expanded
+                                  ? "service-icon-btn is-active"
+                                  : "service-icon-btn"
+                              }
+                              aria-expanded={expanded}
+                              aria-label={`配置 ${engine.label}`}
+                              onClick={() => toggleEngineEditor(engine.value)}
+                            >
+                              <IconEdit className="service-icon-btn-svg" />
+                            </button>
+                          ) : (
+                            <span
+                              className="service-icon-btn is-spacer"
+                              aria-hidden="true"
+                            />
+                          )}
+                        </div>
+                      </div>
+                      {expanded && engine.value === "microsoft" ? (
+                        <div className="service-card-editor">
+                          <p className="service-card-editor-hint">
+                            {engine.hint}
+                          </p>
+                          <label className="service-field">
+                            <span>API Key</span>
+                            <input
+                              type="password"
+                              autoComplete="off"
+                              className="settings-input"
+                              placeholder="Azure Translator 订阅密钥"
+                              value={config.engine.microsoft_api_key ?? ""}
+                              onChange={(event) =>
+                                setConfig({
+                                  ...config,
+                                  engine: {
+                                    ...config.engine,
+                                    microsoft_api_key: event.target.value,
+                                  },
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="service-field">
+                            <span>Region</span>
+                            <input
+                              className="settings-input"
+                              placeholder="如 eastasia；全球资源可留空"
+                              value={config.engine.microsoft_region ?? ""}
+                              onChange={(event) =>
+                                setConfig({
+                                  ...config,
+                                  engine: {
+                                    ...config.engine,
+                                    microsoft_region: event.target.value,
+                                  },
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                      ) : null}
+                      {expanded && engine.value === "google" ? (
+                        <div className="service-card-editor">
+                          <p className="service-card-editor-hint">
+                            {engine.hint}
+                          </p>
+                          <label className="service-field">
+                            <span>API Key</span>
+                            <input
+                              type="password"
+                              autoComplete="off"
+                              className="settings-input"
+                              placeholder="Google Cloud Translation API Key"
+                              value={config.engine.google_api_key ?? ""}
+                              onChange={(event) =>
+                                setConfig({
+                                  ...config,
+                                  engine: {
+                                    ...config.engine,
+                                    google_api_key: event.target.value,
+                                  },
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="settings-panel-foot service-list-foot">
+                同一时间仅一个引擎生效。打开开关即切换当前服务；关闭当前无效。
+              </p>
+            </section>
           ) : null}
 
           {nav === "dictionary" ? (
@@ -429,28 +565,136 @@ export function SettingsApp() {
                 </p>
               </section>
               <section className="settings-panel settings-panel-stack">
-                <label className="settings-stack-label" htmlFor="dict-paths">
-                  词典路径
-                </label>
-                <textarea
-                  id="dict-paths"
-                  className="settings-textarea"
-                  rows={5}
-                  placeholder={"D:\\dicts\\oxford.mdx\n或词典所在文件夹"}
-                  value={config.dictionary.paths.join("\n")}
-                  onChange={(event) =>
-                    setConfig({
-                      ...config,
-                      dictionary: {
-                        ...config.dictionary,
-                        paths: event.target.value
-                          .split(/\r?\n/)
-                          .map((line) => line.trim())
-                          .filter(Boolean),
-                      },
-                    })
-                  }
-                />
+                <label className="settings-stack-label">推荐词典</label>
+                <p className="settings-panel-foot">
+                  ECDICT 简明英汉增强版（mdx，无音标）。安装到{" "}
+                  <code>
+                    {paths?.recommendedDictRelative ?? "dicts/ecdict.mdx"}
+                  </code>
+                  （相对 data/）。约 70MB，需联网从 GitHub Release 下载。
+                </p>
+                <div className="settings-inline-actions">
+                  <button
+                    type="button"
+                    className="settings-btn settings-btn-primary"
+                    disabled={installingDict || loading}
+                    onClick={() => void installRecommendedDict()}
+                  >
+                    {installingDict
+                      ? "下载安装中…"
+                      : paths?.recommendedDictPresent
+                        ? "重新绑定推荐词典"
+                        : "安装 ECDICT 推荐词典"}
+                  </button>
+                </div>
+                {paths?.recommendedDictPresent ? (
+                  <p className="settings-panel-foot">
+                    已检测到：<code>{paths.recommendedDictPath}</code>
+                  </p>
+                ) : null}
+              </section>
+              <section className="settings-panel settings-panel-stack">
+                <div className="settings-stack-head">
+                  <span className="settings-stack-label" id="dict-paths-label">
+                    词典路径
+                  </span>
+                  {config.dictionary.paths.length > 0 ? (
+                    <span className="settings-stack-meta">
+                      {config.dictionary.paths.length} 项 · 仅查第一本
+                    </span>
+                  ) : null}
+                </div>
+
+                {config.dictionary.paths.length === 0 ? (
+                  <div
+                    className="dict-path-empty"
+                    role="status"
+                    aria-labelledby="dict-paths-label"
+                  >
+                    <IconDict className="dict-path-empty-icon" />
+                    <p>尚未添加词典</p>
+                    <span>选择 .mdx 文件或文件夹，或安装上方推荐词典</span>
+                  </div>
+                ) : (
+                  <ul
+                    className="dict-path-list"
+                    aria-labelledby="dict-paths-label"
+                  >
+                    {config.dictionary.paths.map((path, index) => {
+                      const kind = describeDictPath(path);
+                      return (
+                        <li
+                          key={path}
+                          className={
+                            index === 0
+                              ? "dict-path-item is-primary"
+                              : "dict-path-item"
+                          }
+                        >
+                          <div className="dict-path-item-main">
+                            <div className="dict-path-badges">
+                              {index === 0 ? (
+                                <span className="dict-path-badge is-primary">
+                                  优先
+                                </span>
+                              ) : null}
+                              <span className="dict-path-badge">{kind.badge}</span>
+                            </div>
+                            <div className="dict-path-text">
+                              <span className="dict-path-name" title={path}>
+                                {kind.name}
+                              </span>
+                              <code className="dict-path-full" title={path}>
+                                {path}
+                              </code>
+                            </div>
+                          </div>
+                          <div className="dict-path-item-actions">
+                            {index > 0 ? (
+                              <button
+                                type="button"
+                                className="settings-btn settings-btn-ghost dict-path-action"
+                                onClick={() =>
+                                  setConfig({
+                                    ...config,
+                                    dictionary: {
+                                      ...config.dictionary,
+                                      paths: movePathToFront(
+                                        config.dictionary.paths,
+                                        path,
+                                      ),
+                                    },
+                                  })
+                                }
+                              >
+                                设为优先
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="settings-btn settings-btn-ghost dict-path-action"
+                              aria-label={`移除 ${kind.name}`}
+                              onClick={() =>
+                                setConfig({
+                                  ...config,
+                                  dictionary: {
+                                    ...config.dictionary,
+                                    paths: config.dictionary.paths.filter(
+                                      (p) => p !== path,
+                                    ),
+                                  },
+                                })
+                              }
+                            >
+                              移除
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
                 <div className="settings-inline-actions">
                   <button
                     type="button"
@@ -477,13 +721,13 @@ export function SettingsApp() {
                         })
                       }
                     >
-                      清空
+                      全部清空
                     </button>
                   ) : null}
                 </div>
                 <p className="settings-panel-foot">
-                  可为 `.mdx` 文件，或包含 `.mdx` 的文件夹。释义纯文本展示，不加载
-                  `.mdd`。
+                  相对路径相对安装目录旁的 <code>data/</code>
+                  。释义纯文本，不加载 <code>.mdd</code>。
                 </p>
               </section>
             </>
@@ -495,7 +739,9 @@ export function SettingsApp() {
               <h2>{info?.name ?? "Look Translate"}</h2>
               <p className="settings-about-ver">
                 v{info?.version ?? "…"}
-                {info?.phase ? ` · ${info.phase}` : ""}
+              </p>
+              <p className="settings-about-desc">
+                {info?.description ?? "Windows 划词翻译小工具"}
               </p>
               <div className="settings-about-card">
                 <div className="settings-about-row">
@@ -508,7 +754,15 @@ export function SettingsApp() {
                 </div>
               </div>
               <p className="settings-about-note">
-            
+                推荐离线词库来自{" "}
+                <a
+                  href="https://github.com/skywind3000/ECDICT"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  skywind3000/ECDICT
+                </a>
+                ，按需下载至 data/dicts/，不随安装包预装。
               </p>
             </section>
           ) : null}
@@ -595,21 +849,6 @@ function SelectRow({
   );
 }
 
-function FieldRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="settings-row settings-row-field">
-      <span className="settings-row-label">{label}</span>
-      <div className="settings-row-control">{children}</div>
-    </div>
-  );
-}
-
 function RowAction({
   label,
   actionLabel,
@@ -684,4 +923,23 @@ function mergePath(paths: string[], next: string): string[] {
     return [next, ...cleaned.filter((p) => p !== next)];
   }
   return [next, ...cleaned];
+}
+
+function movePathToFront(paths: string[], target: string): string[] {
+  return [target, ...paths.filter((p) => p !== target)];
+}
+
+function describeDictPath(path: string): { badge: string; name: string } {
+  const normalized = path.replace(/\\/g, "/");
+  const name =
+    normalized.split("/").filter(Boolean).pop() ?? path;
+  const isAbsolute =
+    /^[a-zA-Z]:[\\/]/.test(path) ||
+    path.startsWith("\\\\") ||
+    path.startsWith("/");
+  const looksFolder = !/\.mdx$/i.test(name);
+  if (!isAbsolute) {
+    return { badge: "相对", name };
+  }
+  return { badge: looksFolder ? "文件夹" : "文件", name };
 }

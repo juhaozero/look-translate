@@ -1,16 +1,12 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type {
-  AppInfo,
-  CapturePayload,
-  TranslationPayload,
-} from "../shared/types";
-import { TARGET_LANGS, normalizeLangCode } from "../shared/options";
+import type { CapturePayload, TranslationPayload } from "../shared/types";
+import { ENGINES, TARGET_LANGS, normalizeLangCode } from "../shared/options";
+import { EngineIcon } from "../shared/EngineIcon";
 import "./popup.css";
 
 export function PopupApp() {
-  const [info, setInfo] = useState<AppInfo | null>(null);
   const [capture, setCapture] = useState<CapturePayload | null>(null);
   const [translation, setTranslation] = useState<TranslationPayload | null>(
     null,
@@ -19,10 +15,6 @@ export function PopupApp() {
   const [copyStatus, setCopyStatus] = useState("");
 
   useEffect(() => {
-    invoke<AppInfo>("get_app_info")
-      .then(setInfo)
-      .catch(console.error);
-
     invoke<{ general: { target_lang: string } }>("get_config")
       .then((config) => {
         if (config.general?.target_lang) {
@@ -87,10 +79,19 @@ export function PopupApp() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  const sourceText =
-    capture && !capture.empty ? capture.text : translation?.sourceText;
+  const captureFailed = Boolean(capture?.error);
+  const sourceText = captureFailed
+    ? undefined
+    : capture && !capture.empty
+      ? capture.text
+      : translation?.sourceText;
   const canTranslate = Boolean(sourceText && sourceText.trim());
-  const translatedText = translation?.translatedText ?? "";
+  const translatedText =
+    captureFailed || translation?.status !== "ok"
+      ? ""
+      : (translation?.translatedText ?? "");
+  const isOcr = capture?.source === "ocr";
+  const isLoading = !captureFailed && translation?.status === "loading";
 
   async function runTranslate(nextTarget: string) {
     if (!sourceText?.trim()) {
@@ -128,17 +129,20 @@ export function PopupApp() {
 
   return (
     <main className="popup-shell">
+      <div className="popup-accent" aria-hidden="true" />
+
       <header className="popup-header">
-        <span>
-          {capture?.source === "ocr" ? "OCR 翻译" : "划词翻译"}
-        </span>
+        <h1 className={isOcr ? "popup-title is-ocr" : "popup-title"}>
+          {isOcr ? "OCR 翻译" : "划词翻译"}
+        </h1>
         <button
           type="button"
           className="popup-icon-btn"
           title="关闭 (Esc)"
+          aria-label="关闭"
           onClick={() => void invoke("hide_popup_window")}
         >
-          ×
+          <IconClose />
         </button>
       </header>
 
@@ -147,7 +151,7 @@ export function PopupApp() {
           <span>目标语</span>
           <select
             value={targetLang}
-            disabled={!canTranslate || translation?.status === "loading"}
+            disabled={!canTranslate || isLoading}
             onChange={(event) => void onTargetLangChange(event.target.value)}
           >
             {TARGET_LANGS.map((lang) => (
@@ -162,7 +166,7 @@ export function PopupApp() {
         </label>
         <button
           type="button"
-          className="popup-btn"
+          className="popup-btn popup-btn-primary"
           disabled={!translatedText || translation?.status !== "ok"}
           onClick={() => void copyTranslation()}
         >
@@ -170,40 +174,70 @@ export function PopupApp() {
         </button>
       </div>
 
-      {capture?.error ? <p className="popup-error">{capture.error}</p> : null}
+      {capture?.error ? (
+        <p className="popup-error" role="alert">
+          {capture.error}
+        </p>
+      ) : null}
 
       {sourceText ? (
-        <section className="popup-source">
-          <h2>原文</h2>
+        <section className="popup-block popup-source">
+          <div className="popup-block-head">
+            <h2>原文</h2>
+          </div>
           <p>{sourceText}</p>
         </section>
       ) : (
-        <p className="popup-placeholder">
-          选中文本后按划词热键，或将指针移到文字上按 OCR 热键。Esc
-          或点击外部可关闭。
-        </p>
+        <div className="popup-empty">
+          <p>选中文本后按划词热键</p>
+          <span>或将指针移到文字上按 OCR 热键。Esc / 点外部可关闭。</span>
+        </div>
       )}
 
-      {translation?.status === "loading" ? (
-        <p className="popup-hint popup-loading">翻译中…</p>
+      {isLoading ? (
+        <section className="popup-block popup-skeleton" aria-live="polite">
+          <div className="popup-block-head">
+            <h2>译文</h2>
+            <span className="popup-chip">翻译中</span>
+          </div>
+          <div className="popup-skeleton-lines">
+            <span />
+            <span />
+            <span />
+          </div>
+        </section>
       ) : null}
 
       {translation?.status === "ok" && translatedText ? (
-        <section className="popup-result">
-          <h2>
-            译文
-            {translation.engine ? ` · ${translation.engine}` : ""}
-            {translation.detectedSourceLang
-              ? ` · 检测 ${translation.detectedSourceLang}`
-              : ""}
-            {translation.cached ? " · 缓存" : ""}
-          </h2>
+        <section className="popup-block popup-result">
+          <div className="popup-block-head">
+            <h2>译文</h2>
+            <div className="popup-meta">
+              {translation.engine ? (
+                <span className="popup-chip popup-chip-engine">
+                  <EngineIcon engine={translation.engine} size="sm" />
+                  <span>
+                    {ENGINES.find((item) => item.value === translation.engine)
+                      ?.label ?? translation.engine}
+                  </span>
+                </span>
+              ) : null}
+              {translation.detectedSourceLang ? (
+                <span className="popup-chip">
+                  检测 {translation.detectedSourceLang}
+                </span>
+              ) : null}
+              {translation.cached ? (
+                <span className="popup-chip is-soft">缓存</span>
+              ) : null}
+            </div>
+          </div>
           <p>{translatedText}</p>
         </section>
       ) : null}
 
       {translation?.status === "error" && translation.error ? (
-        <div className="popup-translate-error">
+        <div className="popup-translate-error" role="alert">
           <p className="popup-error">{translation.error}</p>
           <button
             type="button"
@@ -215,23 +249,33 @@ export function PopupApp() {
         </div>
       ) : null}
 
-      {translation?.dictionaryText ? (
-        <section className="popup-dict">
-          <h2>
-            词典
-            {translation.dictionarySource
-              ? ` · ${translation.dictionarySource}`
-              : ""}
-          </h2>
+      {translation?.dictionaryText && !captureFailed ? (
+        <section className="popup-block popup-dict">
+          <div className="popup-block-head">
+            <h2>词典</h2>
+            {translation.dictionarySource ? (
+              <span className="popup-chip is-soft">
+                {translation.dictionarySource}
+              </span>
+            ) : null}
+          </div>
           <p>{translation.dictionaryText}</p>
         </section>
       ) : null}
-
-      {info ? (
-        <footer className="popup-footer">
-          {info.name} · {info.version} · {info.phase}
-        </footer>
-      ) : null}
     </main>
+  );
+}
+
+function IconClose() {
+  return (
+    <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+      <path
+        d="M5 5l10 10M15 5 5 15"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

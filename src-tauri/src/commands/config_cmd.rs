@@ -2,7 +2,10 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
 use crate::config::{save_to_path, AppConfig, ConfigState};
-use crate::dictionary::DictionaryState;
+use crate::dictionary::{
+    install_recommended_dictionary, recommended_mdx_path, DictionaryState,
+    InstallRecommendedDictResult, RECOMMENDED_DICT_REL_PATH,
+};
 use crate::hotkey;
 use crate::tray_state::TrayHotkeyToggle;
 
@@ -11,13 +14,27 @@ use crate::tray_state::TrayHotkeyToggle;
 pub struct AppPaths {
     pub data_dir: String,
     pub config_path: String,
+    pub dicts_dir: String,
+    pub recommended_dict_path: String,
+    pub recommended_dict_relative: String,
+    pub recommended_dict_present: bool,
 }
 
 #[tauri::command]
 pub fn get_app_paths(state: State<'_, ConfigState>) -> AppPaths {
+    let recommended = recommended_mdx_path(&state.paths.data_dir);
     AppPaths {
         data_dir: state.paths.data_dir.to_string_lossy().into_owned(),
         config_path: state.paths.config_path.to_string_lossy().into_owned(),
+        dicts_dir: state
+            .paths
+            .data_dir
+            .join("dicts")
+            .to_string_lossy()
+            .into_owned(),
+        recommended_dict_path: recommended.to_string_lossy().into_owned(),
+        recommended_dict_relative: RECOMMENDED_DICT_REL_PATH.to_string(),
+        recommended_dict_present: recommended.is_file(),
     }
 }
 
@@ -66,4 +83,43 @@ pub fn save_config(
         dict.invalidate();
     }
     Ok(saved)
+}
+
+#[tauri::command]
+pub async fn install_recommended_dict(
+    app: AppHandle,
+) -> Result<InstallRecommendedDictResult, String> {
+    let (paths, config, follow_proxy) = {
+        let state = app
+            .try_state::<ConfigState>()
+            .ok_or_else(|| "config state missing".to_string())?;
+        let guard = state
+            .config
+            .read()
+            .map_err(|_| "config lock poisoned".to_string())?;
+        (
+            state.paths.clone(),
+            guard.clone(),
+            guard.general.follow_system_proxy,
+        )
+    };
+
+    let result =
+        install_recommended_dictionary(&paths, config, follow_proxy).await?;
+
+    {
+        let state = app
+            .try_state::<ConfigState>()
+            .ok_or_else(|| "config state missing".to_string())?;
+        let mut guard = state
+            .config
+            .write()
+            .map_err(|_| "config lock poisoned".to_string())?;
+        *guard = result.config.clone();
+    }
+    if let Some(dict) = app.try_state::<DictionaryState>() {
+        dict.invalidate();
+    }
+
+    Ok(result)
 }

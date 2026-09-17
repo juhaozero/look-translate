@@ -18,6 +18,8 @@ active = "microsoft"
 
 [dictionary]
 enabled = true
-# First path only. File (.mdx) or folder containing .mdx files.
+# First path only. Relative paths resolve against this data/ directory.
+# Recommended ECDICT install target (settings:「安装 ECDICT 推荐词典」):
+# paths = ["dicts/ecdict.mdx"]
 paths = []
 # paths = ["D:/dicts/oxford.mdx"]

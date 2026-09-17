@@ -1,6 +1,7 @@
 //! Offline dictionary providers (MDict in MVP).
 
 mod html;
+mod install;
 mod mdict;
 mod short_word;
 
@@ -11,6 +12,10 @@ use serde::Serialize;
 
 use crate::config::AppConfig;
 
+pub use install::{
+    install_recommended_dictionary, recommended_mdx_path, InstallRecommendedDictResult,
+    RECOMMENDED_DICT_REL_PATH,
+};
 pub use short_word::is_short_word;
 
 #[derive(Debug, Clone, Serialize)]
@@ -26,8 +31,21 @@ pub trait DictionaryProvider: Send + Sync {
 }
 
 /// Resolve config path to an `.mdx` file (file path or directory containing .mdx).
-pub fn resolve_mdx_path(raw: &str) -> Result<PathBuf, String> {
-    let path = PathBuf::from(raw.trim());
+/// Relative paths are resolved against `data_dir` when provided.
+pub fn resolve_mdx_path(raw: &str, data_dir: Option<&Path>) -> Result<PathBuf, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("词典路径为空".into());
+    }
+    let path = PathBuf::from(trimmed);
+    let path = if path.is_absolute() {
+        path
+    } else if let Some(base) = data_dir {
+        base.join(path)
+    } else {
+        path
+    };
+
     if !path.exists() {
         return Err(format!("词典路径不存在: {}", path.display()));
     }
@@ -94,6 +112,7 @@ impl DictionaryState {
     pub fn lookup_for_config(
         &self,
         config: &AppConfig,
+        data_dir: &Path,
         word: &str,
     ) -> Result<Option<DictEntry>, String> {
         if !config.dictionary.enabled {
@@ -109,7 +128,7 @@ impl DictionaryState {
             return Ok(None);
         }
 
-        let mdx_path = resolve_mdx_path(raw_path)?;
+        let mdx_path = resolve_mdx_path(raw_path, Some(data_dir))?;
         let mut guard = self
             .open
             .lock()
@@ -138,9 +157,10 @@ impl DictionaryState {
 pub fn lookup_short_word(
     state: &DictionaryState,
     config: &AppConfig,
+    data_dir: &Path,
     word: &str,
 ) -> Option<DictEntry> {
-    match state.lookup_for_config(config, word) {
+    match state.lookup_for_config(config, data_dir, word) {
         Ok(entry) => entry,
         Err(err) => {
             eprintln!("[look-translate] dictionary lookup failed: {err}");
@@ -157,7 +177,7 @@ mod tests {
 
     #[test]
     fn resolve_rejects_missing() {
-        assert!(resolve_mdx_path("C:/definitely-missing-dict-xyz.mdx").is_err());
+        assert!(resolve_mdx_path("C:/definitely-missing-dict-xyz.mdx", None).is_err());
     }
 
     #[test]
@@ -170,8 +190,24 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let mdx = dir.join("demo.mdx");
         fs::write(&mdx, b"not-a-real-mdx").unwrap();
-        let resolved = resolve_mdx_path(dir.to_str().unwrap()).unwrap();
+        let resolved = resolve_mdx_path(dir.to_str().unwrap(), None).unwrap();
         assert_eq!(resolved, mdx);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn resolve_relative_against_data_dir() {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let data_dir = std::env::temp_dir().join(format!("look-translate-data-{nanos}"));
+        let dicts = data_dir.join("dicts");
+        fs::create_dir_all(&dicts).unwrap();
+        let mdx = dicts.join("ecdict.mdx");
+        fs::write(&mdx, b"not-a-real-mdx").unwrap();
+        let resolved = resolve_mdx_path("dicts/ecdict.mdx", Some(&data_dir)).unwrap();
+        assert_eq!(resolved, mdx);
+        let _ = fs::remove_dir_all(&data_dir);
     }
 }

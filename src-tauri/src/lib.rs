@@ -11,15 +11,17 @@ mod tray_state;
 
 use tauri::{
     menu::{CheckMenuItem, Menu, MenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, TrayIconBuilder, TrayIconEvent},
     Manager, WindowEvent,
 };
 
 use crate::cache::TranslationCacheState;
 use crate::capture::CaptureState;
+use crate::commands::app_info::{APP_DESCRIPTION, APP_NAME};
 use crate::commands::window_cmd::PopupUiState;
 use crate::config::{load_or_init, resolve_paths, ConfigState};
 use crate::dictionary::DictionaryState;
+use crate::ocr::OcrSessionState;
 use crate::translate::TranslationState;
 use crate::tray_state::TrayHotkeyToggle;
 
@@ -37,8 +39,12 @@ pub fn run() {
             commands::config_cmd::get_app_paths,
             commands::config_cmd::get_config,
             commands::config_cmd::save_config,
+            commands::config_cmd::install_recommended_dict,
             commands::hotkey_cmd::get_hotkey_status,
             commands::capture_cmd::get_last_capture,
+            commands::capture_cmd::get_ocr_region_hint,
+            commands::capture_cmd::confirm_ocr_region,
+            commands::capture_cmd::cancel_ocr_select,
             commands::translate_cmd::get_last_translation,
             commands::translate_cmd::translate_text,
         ])
@@ -55,6 +61,7 @@ pub fn run() {
             app.manage(TranslationState::default());
             app.manage(TranslationCacheState::default());
             app.manage(DictionaryState::default());
+            app.manage(OcrSessionState::default());
             app.manage(PopupUiState::default());
 
             if let Err(err) = hotkey::apply_from_state(app.handle()) {
@@ -80,7 +87,7 @@ pub fn run() {
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().expect("missing default window icon").clone())
                 .menu(&menu)
-                .tooltip("Look Translate")
+                .tooltip(format!("{APP_NAME} — {APP_DESCRIPTION}"))
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "settings" => {
                         let _ = commands::window_cmd::open_settings(app);
@@ -92,6 +99,15 @@ pub fn run() {
                         app.exit(0);
                     }
                     _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::DoubleClick {
+                        button: MouseButton::Left,
+                        ..
+                    } = event
+                    {
+                        let _ = commands::window_cmd::open_settings(tray.app_handle());
+                    }
                 })
                 .build(app)?;
 
