@@ -1,6 +1,6 @@
 # Example only. Runtime file is created next to the executable under `data/config.toml`.
 [general]
-target_lang = "zh-Hans"
+target_lang = "zh-CN"
 source_lang = "auto"
 hotkey_translate = "Ctrl+Shift+D"
 hotkey_ocr = "Ctrl+Shift+S"
@@ -11,7 +11,13 @@ follow_system_proxy = true
 active = "microsoft"
 # microsoft_api_key = "your-key"
 # microsoft_region = "eastasia"  # regional / multi-service resources only
+# google_api_key = "your-google-cloud-translation-v2-key"
+# active = "microsoft_web"  # unofficial Bing web (no key)
+# active = "google"         # Cloud Translation API v2
+# active = "google_web"     # unofficial gtx endpoint (no key)
 
 [dictionary]
 enabled = true
+# First path only. File (.mdx) or folder containing .mdx files.
 paths = []
+# paths = ["D:/dicts/oxford.mdx"]

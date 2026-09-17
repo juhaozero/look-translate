@@ -2,6 +2,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
 use crate::config::{save_to_path, AppConfig, ConfigState};
+use crate::dictionary::DictionaryState;
 use crate::hotkey;
 use crate::tray_state::TrayHotkeyToggle;
 
@@ -36,17 +37,33 @@ pub fn save_config(
     config: AppConfig,
 ) -> Result<AppConfig, String> {
     hotkey::validate_shortcut(&config.general.hotkey_translate)?;
+    if !config.general.hotkey_ocr.trim().is_empty() {
+        hotkey::validate_shortcut(&config.general.hotkey_ocr)?;
+    }
+    if config
+        .general
+        .hotkey_translate
+        .trim()
+        .eq_ignore_ascii_case(config.general.hotkey_ocr.trim())
+    {
+        return Err("划词热键与 OCR 热键不能相同".into());
+    }
+    // serialize_config normalizes legacy zh-Hans / zh-Hant on write.
     save_to_path(&state.paths.config_path, &config)?;
+    let saved = crate::config::load_from_path(&state.paths.config_path)?;
     {
         let mut guard = state
             .config
             .write()
             .map_err(|_| "config lock poisoned".to_string())?;
-        *guard = config.clone();
+        *guard = saved.clone();
     }
-    hotkey::apply(&app, &config)?;
+    hotkey::apply(&app, &saved)?;
     if let Some(tray) = app.try_state::<TrayHotkeyToggle>() {
-        let _ = tray.item.set_checked(config.general.hotkey_enabled);
+        let _ = tray.item.set_checked(saved.general.hotkey_enabled);
     }
-    Ok(config)
+    if let Some(dict) = app.try_state::<DictionaryState>() {
+        dict.invalidate();
+    }
+    Ok(saved)
 }

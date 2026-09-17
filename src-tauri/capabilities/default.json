@@ -16,6 +16,7 @@
     "core:window:allow-available-monitors",
     "core:window:allow-current-monitor",
     "core:event:allow-listen",
-    "core:event:allow-emit"
+    "core:event:allow-emit",
+    "dialog:default"
   ]
 }

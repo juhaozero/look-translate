@@ -1,4 +1,7 @@
-//! Clipboard capture (Phase 1) and OCR hook (Phase 2).
+//! Clipboard selection capture for the translate hotkey.
+//!
+//! OCR is intentionally **not** used as a fallback here — it has its own
+//! hotkey and module (`crate::ocr`).
 
 use std::sync::RwLock;
 use std::thread;
@@ -7,8 +10,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 
 pub const MAX_CAPTURE_CHARS: usize = 8_000;
-pub const CAPTURE_TIMEOUT: Duration = Duration::from_millis(450);
-pub const CAPTURE_POLL: Duration = Duration::from_millis(20);
+/// Apps often deliver clipboard text asynchronously after Ctrl+C.
+pub const CAPTURE_TIMEOUT: Duration = Duration::from_millis(900);
+pub const CAPTURE_POLL: Duration = Duration::from_millis(25);
 pub const MARKER_PREFIX: &str = "__look_translate_marker__";
 
 #[derive(Debug, Clone, Serialize)]
@@ -17,24 +21,28 @@ pub struct CapturePayload {
     pub text: String,
     pub empty: bool,
     pub error: Option<String>,
+    /// `clipboard` | `ocr`
+    pub source: String,
     pub captured_at_ms: u128,
 }
 
 impl CapturePayload {
-    pub fn ok(text: String) -> Self {
+    pub fn ok(text: String, source: &str) -> Self {
         Self {
             text,
             empty: false,
             error: None,
+            source: source.to_string(),
             captured_at_ms: now_ms(),
         }
     }
 
-    pub fn fail(message: impl Into<String>) -> Self {
+    pub fn fail(message: impl Into<String>, source: &str) -> Self {
         Self {
             text: String::new(),
             empty: true,
             error: Some(message.into()),
+            source: source.to_string(),
             captured_at_ms: now_ms(),
         }
     }
@@ -79,6 +87,7 @@ pub fn normalize_captured_text(raw: &str) -> Result<String, String> {
 }
 
 /// Backup clipboard → simulate Ctrl+C → read → restore.
+/// Never falls back to OCR.
 pub fn capture_selection() -> Result<String, String> {
     #[cfg(windows)]
     {
@@ -109,22 +118,46 @@ fn capture_selection_windows() -> Result<String, String> {
         .set_text(marker.clone())
         .map_err(|e| format!("写入剪贴板标记失败: {e}"))?;
 
-    // Brief settle so the marker is visible before we send Ctrl+C.
-    thread::sleep(Duration::from_millis(30));
+    // Settle so the marker is committed before we send Ctrl+C.
+    thread::sleep(Duration::from_millis(40));
+
+    // Give the foreground app a beat after the global hotkey is released.
+    thread::sleep(Duration::from_millis(40));
 
     let mut enigo = Enigo::new(&Settings::default())
         .map_err(|e| format!("初始化按键模拟失败: {e}"))?;
+
+    // Debug builds are console-subsystem; synthesizing Ctrl+C would otherwise
+    // deliver CTRL_C_EVENT to our own console (flash / "Terminate batch?").
+    let _suppress_ctrl_c = SuppressConsoleCtrlC::install();
+
+    // IMPORTANT: do NOT use Key::Unicode('c') — on Windows that becomes
+    // KEYEVENTF_UNICODE / VK_PACKET and does not trigger Ctrl+C copy.
+    // Key::C maps to VK_C and works as a real shortcut chord.
     enigo
-        .key(Key::Control, Press)
+        .key(Key::LControl, Press)
+        .or_else(|_| enigo.key(Key::Control, Press))
         .map_err(|e| format!("模拟 Ctrl 按下失败: {e}"))?;
     enigo
-        .key(Key::Unicode('c'), Click)
+        .key(Key::C, Click)
         .map_err(|e| format!("模拟 C 失败: {e}"))?;
     enigo
-        .key(Key::Control, Release)
+        .key(Key::LControl, Release)
+        .or_else(|_| enigo.key(Key::Control, Release))
         .map_err(|e| format!("模拟 Ctrl 松开失败: {e}"))?;
 
-    let raw = poll_clipboard_change(&mut clipboard, &marker)?;
+    // Copy is async in many apps; wait a moment before polling.
+    // Keep the Ctrl+C suppressor alive across this settle window.
+    thread::sleep(Duration::from_millis(30));
+    drop(_suppress_ctrl_c);
+
+    let raw = match poll_clipboard_change(&mut clipboard, &marker) {
+        Ok(text) => text,
+        Err(err) => {
+            restore_clipboard(&mut clipboard, previous_text.as_deref());
+            return Err(err);
+        }
+    };
     restore_clipboard(&mut clipboard, previous_text.as_deref());
 
     normalize_captured_text(&raw)
@@ -137,14 +170,20 @@ fn poll_clipboard_change(
 ) -> Result<String, String> {
     let deadline = Instant::now() + CAPTURE_TIMEOUT;
     let mut last_seen = String::new();
+    let mut saw_marker = false;
 
     while Instant::now() < deadline {
         thread::sleep(CAPTURE_POLL);
         match clipboard.get_text() {
             Ok(text) if text != marker => {
+                // Ignore empty flashes some apps write during copy.
+                if text.trim().is_empty() {
+                    continue;
+                }
                 return Ok(text);
             }
             Ok(text) => {
+                saw_marker = true;
                 last_seen = text;
             }
             Err(_) => {
@@ -154,7 +193,12 @@ fn poll_clipboard_change(
     }
 
     if last_seen.is_empty() || last_seen == marker {
-        Err("取词超时：未检测到新的剪贴板内容".into())
+        let hint = if saw_marker {
+            "取词超时：未检测到新的剪贴板内容（请确认已选中文本，且目标窗口支持 Ctrl+C）"
+        } else {
+            "取词超时：剪贴板无响应"
+        };
+        Err(hint.into())
     } else {
         Ok(last_seen)
     }
@@ -171,11 +215,51 @@ fn restore_clipboard(clipboard: &mut arboard::Clipboard, previous: Option<&str>)
     }
 }
 
-/// Run capture and always produce a payload (success or failure).
+/// Ignore CTRL_C / CTRL_BREAK delivered to *this* process while we synthesize Ctrl+C.
+#[cfg(windows)]
+struct SuppressConsoleCtrlC;
+
+#[cfg(windows)]
+impl SuppressConsoleCtrlC {
+    fn install() -> Self {
+        unsafe {
+            let _ = windows::Win32::System::Console::SetConsoleCtrlHandler(
+                Some(ignore_console_ctrl),
+                true,
+            );
+        }
+        Self
+    }
+}
+
+#[cfg(windows)]
+impl Drop for SuppressConsoleCtrlC {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = windows::Win32::System::Console::SetConsoleCtrlHandler(
+                Some(ignore_console_ctrl),
+                false,
+            );
+        }
+    }
+}
+
+#[cfg(windows)]
+unsafe extern "system" fn ignore_console_ctrl(ctrl_type: u32) -> windows::core::BOOL {
+    use windows::Win32::System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT};
+
+    if ctrl_type == CTRL_C_EVENT || ctrl_type == CTRL_BREAK_EVENT {
+        true.into()
+    } else {
+        false.into()
+    }
+}
+
+/// Clipboard capture path used by the translate hotkey.
 pub fn capture_payload() -> CapturePayload {
     match capture_selection() {
-        Ok(text) => CapturePayload::ok(text),
-        Err(err) => CapturePayload::fail(err),
+        Ok(text) => CapturePayload::ok(text, "clipboard"),
+        Err(err) => CapturePayload::fail(err, "clipboard"),
     }
 }
 
@@ -198,5 +282,15 @@ mod tests {
     fn normalize_rejects_too_long() {
         let long = "字".repeat(MAX_CAPTURE_CHARS + 1);
         assert!(normalize_captured_text(&long).is_err());
+    }
+
+    #[test]
+    fn clipboard_payload_never_reports_ocr_source() {
+        // Structural guard: clipboard path always tags source as clipboard.
+        let ok = CapturePayload::ok("hi".into(), "clipboard");
+        let fail = CapturePayload::fail("x", "clipboard");
+        assert_eq!(ok.source, "clipboard");
+        assert_eq!(fail.source, "clipboard");
+        assert_ne!(ok.source, "ocr");
     }
 }

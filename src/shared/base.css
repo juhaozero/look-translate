@@ -1,7 +1,12 @@
 :root {
-  color: #1a1a1a;
-  background: #f7f7f5;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #1f2937;
+  background: #f3f4f6;
+  font-family:
+    "Segoe UI",
+    "PingFang SC",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -22,7 +27,26 @@ body {
   min-width: 320px;
 }
 
-button {
+button,
+input,
+select,
+textarea {
   font: inherit;
+}
+
+button {
   cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+code {
+  font-family:
+    ui-monospace,
+    "Cascadia Mono",
+    "Segoe UI Mono",
+    Consolas,
+    monospace;
 }

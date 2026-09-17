@@ -6,18 +6,8 @@ import type {
   CapturePayload,
   TranslationPayload,
 } from "../shared/types";
+import { TARGET_LANGS, normalizeLangCode } from "../shared/options";
 import "./popup.css";
-
-const TARGET_LANGS = [
-  { value: "zh-Hans", label: "简体中文" },
-  { value: "zh-Hant", label: "繁體中文" },
-  { value: "en", label: "English" },
-  { value: "ja", label: "日本語" },
-  { value: "ko", label: "한국어" },
-  { value: "fr", label: "Français" },
-  { value: "de", label: "Deutsch" },
-  { value: "es", label: "Español" },
-] as const;
 
 export function PopupApp() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -25,7 +15,7 @@ export function PopupApp() {
   const [translation, setTranslation] = useState<TranslationPayload | null>(
     null,
   );
-  const [targetLang, setTargetLang] = useState("zh-Hans");
+  const [targetLang, setTargetLang] = useState("zh-CN");
   const [copyStatus, setCopyStatus] = useState("");
 
   useEffect(() => {
@@ -36,7 +26,7 @@ export function PopupApp() {
     invoke<{ general: { target_lang: string } }>("get_config")
       .then((config) => {
         if (config.general?.target_lang) {
-          setTargetLang(config.general.target_lang);
+          setTargetLang(normalizeLangCode(config.general.target_lang) || "zh-CN");
         }
       })
       .catch(console.error);
@@ -139,7 +129,9 @@ export function PopupApp() {
   return (
     <main className="popup-shell">
       <header className="popup-header">
-        <span>划词翻译</span>
+        <span>
+          {capture?.source === "ocr" ? "OCR 翻译" : "划词翻译"}
+        </span>
         <button
           type="button"
           className="popup-icon-btn"
@@ -187,7 +179,8 @@ export function PopupApp() {
         </section>
       ) : (
         <p className="popup-placeholder">
-          选中文本后按下划词热键。Esc 或点击外部可关闭。
+          选中文本后按划词热键，或将指针移到文字上按 OCR 热键。Esc
+          或点击外部可关闭。
         </p>
       )}
 
@@ -220,6 +213,18 @@ export function PopupApp() {
             重试
           </button>
         </div>
+      ) : null}
+
+      {translation?.dictionaryText ? (
+        <section className="popup-dict">
+          <h2>
+            词典
+            {translation.dictionarySource
+              ? ` · ${translation.dictionarySource}`
+              : ""}
+          </h2>
+          <p>{translation.dictionaryText}</p>
+        </section>
       ) : null}
 
       {info ? (

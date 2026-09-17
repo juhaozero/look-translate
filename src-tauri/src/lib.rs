@@ -4,6 +4,8 @@ mod commands;
 mod config;
 mod dictionary;
 mod hotkey;
+mod lang;
+mod ocr;
 mod translate;
 mod tray_state;
 
@@ -17,6 +19,7 @@ use crate::cache::TranslationCacheState;
 use crate::capture::CaptureState;
 use crate::commands::window_cmd::PopupUiState;
 use crate::config::{load_or_init, resolve_paths, ConfigState};
+use crate::dictionary::DictionaryState;
 use crate::translate::TranslationState;
 use crate::tray_state::TrayHotkeyToggle;
 
@@ -24,6 +27,7 @@ use crate::tray_state::TrayHotkeyToggle;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::app_info::get_app_info,
             commands::window_cmd::show_settings_window,
@@ -50,6 +54,7 @@ pub fn run() {
             app.manage(CaptureState::default());
             app.manage(TranslationState::default());
             app.manage(TranslationCacheState::default());
+            app.manage(DictionaryState::default());
             app.manage(PopupUiState::default());
 
             if let Err(err) = hotkey::apply_from_state(app.handle()) {

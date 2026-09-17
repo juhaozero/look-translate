@@ -2,6 +2,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cache::{CacheKey, TranslationCacheState};
 use crate::config::ConfigState;
+use crate::dictionary::{lookup_short_word, DictionaryState};
 use crate::translate::{
     request_from_config, translate_with_config, TranslationPayload, TranslationState,
 };
@@ -45,15 +46,21 @@ pub async fn run_translate(
         req.text.clone(),
     );
 
+    let dict_entry = app
+        .try_state::<DictionaryState>()
+        .and_then(|state| lookup_short_word(&state, &config, &req.text));
+
     if let Some(cache) = app.try_state::<TranslationCacheState>() {
         if let Some(cached) = cache.get(&cache_key) {
-            let payload = TranslationPayload::ok(&text, cached, true);
+            let payload =
+                TranslationPayload::ok(&text, cached, true).with_dictionary(dict_entry.clone());
             store_and_emit(app, payload.clone());
             return Ok(payload);
         }
     }
 
-    let loading = TranslationPayload::loading(&req.text, &req.source_lang, &req.target_lang);
+    let loading = TranslationPayload::loading(&req.text, &req.source_lang, &req.target_lang)
+        .with_dictionary(dict_entry.clone());
     store_and_emit(app, loading);
 
     let payload = match translate_with_config(&config, req.clone()).await {
@@ -61,9 +68,13 @@ pub async fn run_translate(
             if let Some(cache) = app.try_state::<TranslationCacheState>() {
                 cache.put(cache_key, result.clone());
             }
-            TranslationPayload::ok(&text, result, false)
+            TranslationPayload::ok(&text, result, false).with_dictionary(dict_entry)
         }
-        Err(err) => TranslationPayload::fail(&text, &req.source_lang, &req.target_lang, err),
+        Err(err) => {
+            // Short-word fallback: still surface dictionary when online translate fails.
+            TranslationPayload::fail(&text, &req.source_lang, &req.target_lang, err)
+                .with_dictionary(dict_entry)
+        }
     };
     store_and_emit(app, payload.clone());
     Ok(payload)

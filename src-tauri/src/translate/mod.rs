@@ -1,14 +1,19 @@
 //! Translator trait and engine implementations.
 
+mod google;
 mod microsoft;
+mod microsoft_web;
 mod state;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use crate::config::AppConfig;
+use crate::lang::normalize_lang_code;
 
+pub use google::{GoogleCloudTranslator, GoogleWebTranslator};
 pub use microsoft::MicrosoftTranslator;
+pub use microsoft_web::MicrosoftWebTranslator;
 pub use state::TranslationState;
 
 #[derive(Debug, Clone)]
@@ -40,6 +45,8 @@ pub struct TranslationPayload {
     pub detected_source_lang: Option<String>,
     pub error: Option<String>,
     pub cached: bool,
+    pub dictionary_text: Option<String>,
+    pub dictionary_source: Option<String>,
 }
 
 impl TranslationPayload {
@@ -54,6 +61,8 @@ impl TranslationPayload {
             detected_source_lang: None,
             error: None,
             cached: false,
+            dictionary_text: None,
+            dictionary_source: None,
         }
     }
 
@@ -68,6 +77,8 @@ impl TranslationPayload {
             detected_source_lang: result.detected_source_lang,
             error: None,
             cached,
+            dictionary_text: None,
+            dictionary_source: None,
         }
     }
 
@@ -87,7 +98,17 @@ impl TranslationPayload {
             detected_source_lang: None,
             error: Some(error.into()),
             cached: false,
+            dictionary_text: None,
+            dictionary_source: None,
         }
+    }
+
+    pub fn with_dictionary(mut self, entry: Option<crate::dictionary::DictEntry>) -> Self {
+        if let Some(entry) = entry {
+            self.dictionary_text = Some(entry.text);
+            self.dictionary_source = Some(entry.source);
+        }
+        self
     }
 }
 
@@ -119,17 +140,47 @@ pub async fn translate_with_config(
             let translator = MicrosoftTranslator::from_config(config, client)?;
             translator.translate(&req).await
         }
+        "microsoft_web" => {
+            let translator = MicrosoftWebTranslator::new(client);
+            translator.translate(&req).await
+        }
+        "google" => {
+            let translator = GoogleCloudTranslator::from_config(config, client)?;
+            translator.translate(&req).await
+        }
+        "google_web" => {
+            let translator = GoogleWebTranslator::new(client);
+            translator.translate(&req).await
+        }
         other => Err(format!(
-            "未知翻译引擎 `{other}`（当前支持：microsoft）"
+            "未知翻译引擎 `{other}`（当前支持：microsoft / microsoft_web / google / google_web）"
         )),
     }
 }
 
-pub fn request_from_config(config: &AppConfig, text: String, target_lang: Option<String>) -> TranslationRequest {
+pub fn request_from_config(
+    config: &AppConfig,
+    text: String,
+    target_lang: Option<String>,
+) -> TranslationRequest {
+    let source_lang = normalize_lang_code(&config.general.source_lang);
+    let target = target_lang
+        .as_deref()
+        .map(normalize_lang_code)
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| normalize_lang_code(&config.general.target_lang));
     TranslationRequest {
         text,
-        source_lang: config.general.source_lang.clone(),
-        target_lang: target_lang.unwrap_or_else(|| config.general.target_lang.clone()),
+        source_lang: if source_lang.is_empty() {
+            "auto".into()
+        } else {
+            source_lang
+        },
+        target_lang: if target.is_empty() {
+            "zh-CN".into()
+        } else {
+            target
+        },
     }
 }
 
@@ -139,7 +190,7 @@ mod tests {
 
     #[test]
     fn payload_loading_status() {
-        let p = TranslationPayload::loading("hi", "auto", "zh-Hans");
+        let p = TranslationPayload::loading("hi", "auto", "zh-CN");
         assert_eq!(p.status, "loading");
         assert!(p.translated_text.is_none());
     }

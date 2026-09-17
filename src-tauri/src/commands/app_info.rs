@@ -13,6 +13,6 @@ pub fn get_app_info() -> AppInfo {
     AppInfo {
         name: "Look Translate".into(),
         version: env!("CARGO_PKG_VERSION").into(),
-        phase: "Phase 1 / cache".into(),
+        phase: "Phase 1+2 / capture+ocr".into(),
     }
 }

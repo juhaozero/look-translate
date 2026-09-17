@@ -131,7 +131,7 @@ mod tests {
             engine: "microsoft".into(),
             text: text.into(),
             source_lang: "auto".into(),
-            target_lang: "zh-Hans".into(),
+            target_lang: "zh-CN".into(),
             detected_source_lang: Some("en".into()),
         }
     }
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn get_put_roundtrip() {
         let mut cache = TranslationCache::new(2);
-        let key = CacheKey::new("microsoft", "auto", "zh-Hans", "hello");
+        let key = CacheKey::new("microsoft", "auto", "zh-CN", "hello");
         cache.put(key.clone(), sample_result("你好"));
         assert_eq!(cache.get(&key).unwrap().text, "你好");
         assert_eq!(cache.len(), 1);
@@ -148,9 +148,9 @@ mod tests {
     #[test]
     fn evicts_least_recently_used() {
         let mut cache = TranslationCache::new(2);
-        let k1 = CacheKey::new("microsoft", "auto", "zh-Hans", "one");
-        let k2 = CacheKey::new("microsoft", "auto", "zh-Hans", "two");
-        let k3 = CacheKey::new("microsoft", "auto", "zh-Hans", "three");
+        let k1 = CacheKey::new("microsoft", "auto", "zh-CN", "one");
+        let k2 = CacheKey::new("microsoft", "auto", "zh-CN", "two");
+        let k3 = CacheKey::new("microsoft", "auto", "zh-CN", "three");
 
         cache.put(k1.clone(), sample_result("1"));
         cache.put(k2.clone(), sample_result("2"));
@@ -168,7 +168,7 @@ mod tests {
     fn different_langs_are_different_keys() {
         let mut cache = TranslationCache::new(10);
         let en = CacheKey::new("microsoft", "auto", "en", "你好");
-        let zh = CacheKey::new("microsoft", "auto", "zh-Hans", "你好");
+        let zh = CacheKey::new("microsoft", "auto", "zh-CN", "你好");
         cache.put(en.clone(), sample_result("hello"));
         cache.put(zh.clone(), sample_result("你好"));
         assert_eq!(cache.get(&en).unwrap().text, "hello");

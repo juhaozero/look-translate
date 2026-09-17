@@ -5,6 +5,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::config::AppConfig;
+use crate::lang::{from_microsoft_lang, to_microsoft_lang};
 
 use super::{TranslationRequest, TranslationResult, Translator};
 
@@ -56,14 +57,16 @@ impl Translator for MicrosoftTranslator {
             return Err("目标语言不能为空".into());
         }
 
+        let target = to_microsoft_lang(&req.target_lang);
+        let source = to_microsoft_lang(&req.source_lang);
+
         let mut url = reqwest::Url::parse(ENDPOINT).map_err(|e| e.to_string())?;
         {
             let mut pairs = url.query_pairs_mut();
             pairs.append_pair("api-version", API_VERSION);
-            pairs.append_pair("to", req.target_lang.trim());
-            let from = req.source_lang.trim();
-            if !from.is_empty() && !from.eq_ignore_ascii_case("auto") {
-                pairs.append_pair("from", from);
+            pairs.append_pair("to", &target);
+            if !source.is_empty() && !source.eq_ignore_ascii_case("auto") {
+                pairs.append_pair("from", &source);
             }
         }
 
@@ -115,8 +118,13 @@ impl Translator for MicrosoftTranslator {
             engine: self.id().into(),
             text: translated.text,
             source_lang: req.source_lang.clone(),
-            target_lang: translated.to.unwrap_or_else(|| req.target_lang.clone()),
-            detected_source_lang: item.detected_language.map(|d| d.language),
+            target_lang: translated
+                .to
+                .map(|code| from_microsoft_lang(&code))
+                .unwrap_or_else(|| req.target_lang.clone()),
+            detected_source_lang: item
+                .detected_language
+                .map(|d| from_microsoft_lang(&d.language)),
         })
     }
 }

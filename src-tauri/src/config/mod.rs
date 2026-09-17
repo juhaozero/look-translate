@@ -62,7 +62,7 @@ pub struct GeneralConfig {
 impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
-            target_lang: "zh-Hans".into(),
+            target_lang: "zh-CN".into(),
             source_lang: "auto".into(),
             hotkey_translate: "Ctrl+Shift+D".into(),
             hotkey_ocr: "Ctrl+Shift+S".into(),
@@ -82,6 +82,9 @@ pub struct EngineConfig {
     /// Required for regional / multi-service Azure resources.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub microsoft_region: Option<String>,
+    /// Google Cloud Translation API v2 key (stored locally only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub google_api_key: Option<String>,
 }
 
 impl Default for EngineConfig {
@@ -90,6 +93,7 @@ impl Default for EngineConfig {
             active: "microsoft".into(),
             microsoft_api_key: None,
             microsoft_region: None,
+            google_api_key: None,
         }
     }
 }
@@ -156,14 +160,34 @@ pub fn save_to_path(path: &Path, config: &AppConfig) -> Result<(), String> {
 }
 
 pub fn parse_config(raw: &str) -> Result<AppConfig, String> {
-    toml::from_str(raw).map_err(|e| format!("parse config: {e}"))
+    let mut config: AppConfig =
+        toml::from_str(raw).map_err(|e| format!("parse config: {e}"))?;
+    normalize_config_langs(&mut config);
+    Ok(config)
 }
 
 pub fn serialize_config(config: &AppConfig) -> Result<String, String> {
-    let body = toml::to_string_pretty(config).map_err(|e| format!("serialize config: {e}"))?;
+    let mut normalized = config.clone();
+    normalize_config_langs(&mut normalized);
+    let body =
+        toml::to_string_pretty(&normalized).map_err(|e| format!("serialize config: {e}"))?;
     Ok(format!(
         "# Look Translate portable config. Do not commit API keys.\n{body}"
     ))
+}
+
+/// Rewrite legacy Microsoft-style Chinese tags to Google-style.
+fn normalize_config_langs(config: &mut AppConfig) {
+    use crate::lang::normalize_lang_code;
+
+    config.general.target_lang = normalize_lang_code(&config.general.target_lang);
+    if config.general.target_lang.is_empty() {
+        config.general.target_lang = "zh-CN".into();
+    }
+    config.general.source_lang = normalize_lang_code(&config.general.source_lang);
+    if config.general.source_lang.is_empty() {
+        config.general.source_lang = "auto".into();
+    }
 }
 
 #[cfg(test)]
@@ -210,11 +234,23 @@ active = "microsoft"
 
         let config = load_or_init(&paths).unwrap();
         assert!(paths.config_path.exists());
-        assert_eq!(config.general.target_lang, "zh-Hans");
+        assert_eq!(config.general.target_lang, "zh-CN");
 
         let reloaded = load_from_path(&paths.config_path).unwrap();
         assert_eq!(reloaded, config);
 
         let _ = fs::remove_dir_all(&paths.data_dir);
+    }
+
+    #[test]
+    fn legacy_chinese_codes_normalize() {
+        let raw = r#"
+[general]
+target_lang = "zh-Hans"
+source_lang = "zh-Hant"
+"#;
+        let parsed = parse_config(raw).unwrap();
+        assert_eq!(parsed.general.target_lang, "zh-CN");
+        assert_eq!(parsed.general.source_lang, "zh-TW");
     }
 }

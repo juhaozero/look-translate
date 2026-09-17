@@ -12,6 +12,10 @@ export type AppPaths = {
 export type HotkeyStatus = {
   enabled: boolean;
   translate: string;
+  ocr?: string;
+  translateRegistered?: boolean;
+  ocrRegistered?: boolean;
+  /** @deprecated alias of translateRegistered */
   registered: boolean;
 };
 
@@ -19,6 +23,8 @@ export type CapturePayload = {
   text: string;
   empty: boolean;
   error?: string | null;
+  /** `clipboard` | `ocr` */
+  source?: string;
   capturedAtMs: number;
 };
 
@@ -32,6 +38,8 @@ export type TranslationPayload = {
   detectedSourceLang?: string | null;
   error?: string | null;
   cached?: boolean;
+  dictionaryText?: string | null;
+  dictionarySource?: string | null;
 };
 
 export type AppConfig = {
@@ -47,6 +55,7 @@ export type AppConfig = {
     active: string;
     microsoft_api_key?: string | null;
     microsoft_region?: string | null;
+    google_api_key?: string | null;
   };
   dictionary: {
     enabled: boolean;
@@ -57,7 +66,7 @@ export type AppConfig = {
 export function emptyConfig(): AppConfig {
   return {
     general: {
-      target_lang: "zh-Hans",
+      target_lang: "zh-CN",
       source_lang: "auto",
       hotkey_translate: "Ctrl+Shift+D",
       hotkey_ocr: "Ctrl+Shift+S",
@@ -68,6 +77,7 @@ export function emptyConfig(): AppConfig {
       active: "microsoft",
       microsoft_api_key: null,
       microsoft_region: null,
+      google_api_key: null,
     },
     dictionary: {
       enabled: true,
