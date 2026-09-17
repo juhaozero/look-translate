@@ -45,6 +45,7 @@ pub fn run() {
             commands::capture_cmd::get_ocr_region_hint,
             commands::capture_cmd::confirm_ocr_region,
             commands::capture_cmd::cancel_ocr_select,
+            commands::capture_cmd::submit_ocr_text,
             commands::translate_cmd::get_last_translation,
             commands::translate_cmd::translate_text,
         ])

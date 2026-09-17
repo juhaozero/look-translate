@@ -98,18 +98,21 @@ look-translate/
 
 - 默认热键：`Ctrl+Shift+S`（可改）；与划词热键不可相同
 - 热键先截当前显示器快照，再打开透明 `ocr-select` 框选层；预标指针附近约 480×160 建议区
-- 拖拽重选 / Enter 确认 / Esc 取消 → 从快照裁剪（避免截到遮罩）→ `Windows.Media.Ocr` → 同一翻译/词典流水线
-- 命令：`get_ocr_region_hint` / `confirm_ocr_region` / `cancel_ocr_select`
+- 拖拽重选 / Enter 确认 / Esc 取消 → 从快照裁剪（避免截到遮罩）
+- 引擎（`[ocr] engine`，设置页「服务设置」可切换）：
+  - `system`（默认）：`Windows.Media.Ocr`
+  - `tesseract`：前端 [Tesseract.js](https://github.com/naptha/tesseract.js/) WASM（`eng+chi_sim`），命令 `submit_ocr_text`
+- 命令：`get_ocr_region_hint` / `confirm_ocr_region` / `cancel_ocr_select` / `submit_ocr_text`
 - `source=ocr`；与剪贴板路径互不兜底
-- 需系统已安装 OCR 语言包
+- 系统 OCR 需已安装语言包；Tesseract 首次使用会下载模型
 
 ## 翻译
 
 - 抽象：`Translator` trait；入口 `translate_with_config`
-- 引擎：`microsoft`（Azure Translator Text API v3）；`microsoft_web`（非官方 Bing 网页，无 Key）；`google`（Cloud Translation API v2 + Key）；`google_web`（非官方 gtx，无 Key）
-- 语言：设置侧统一 Google 风格（`zh-CN` / `zh-TW`）；读配置兼容旧 `zh-Hans` / `zh-Hant`；微软系引擎内反向映射；`source_lang=auto` 时不传 `from`；默认 `target_lang=zh-CN`
+- 引擎：`microsoft`（Azure Translator Text API v3）；`microsoft_web`（非官方 Bing 网页，无 Key）；`google`（Cloud Translation API v2 + Key）；`google_web`（非官方 gtx，无 Key）；`self_hosted`（自建 translate-api / Cloudflare Worker）
+- 语言：设置侧统一 Google 风格（`zh-CN` / `zh-TW`）；读配置兼容旧 `zh-Hans` / `zh-Hant`；微软系引擎内反向映射；`source_lang=auto` 时不传 `from`（自建引擎则按 `en`）；默认 `target_lang=zh-CN`
 - 代理：`follow_system_proxy=true` 时走 reqwest system-proxy；否则 `no_proxy()`
-- 配置：`microsoft_api_key` / `microsoft_region`；`google_api_key`（仅官方 Google）
+- 配置：`microsoft_api_key` / `microsoft_region`；`google_api_key`（仅官方 Google）；`self_hosted_endpoint` / `self_hosted_secret`
 - 流水线：取词成功后异步翻译；事件 `translation-updated`（loading/ok/error）
 - 命令：`get_last_translation` / `translate_text`
 

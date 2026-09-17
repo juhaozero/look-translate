@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Copied by vite from node_modules on dev/build
+/public/tesseract/
+
 # Runtime portable data (keep example only)
 /data/*
 !/data/.gitkeep

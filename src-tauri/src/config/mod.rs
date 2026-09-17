@@ -35,6 +35,7 @@ impl ConfigState {
 pub struct AppConfig {
     pub general: GeneralConfig,
     pub engine: EngineConfig,
+    pub ocr: OcrConfig,
     pub dictionary: DictionaryConfig,
 }
 
@@ -43,6 +44,7 @@ impl Default for AppConfig {
         Self {
             general: GeneralConfig::default(),
             engine: EngineConfig::default(),
+            ocr: OcrConfig::default(),
             dictionary: DictionaryConfig::default(),
         }
     }
@@ -85,6 +87,12 @@ pub struct EngineConfig {
     /// Google Cloud Translation API v2 key (stored locally only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub google_api_key: Option<String>,
+    /// Self-hosted translate-api compatible endpoint (Cloudflare Worker URL, etc.).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub self_hosted_endpoint: Option<String>,
+    /// Optional access secret for the self-hosted endpoint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub self_hosted_secret: Option<String>,
 }
 
 impl Default for EngineConfig {
@@ -94,7 +102,31 @@ impl Default for EngineConfig {
             microsoft_api_key: None,
             microsoft_region: None,
             google_api_key: None,
+            self_hosted_endpoint: None,
+            self_hosted_secret: None,
         }
+    }
+}
+
+/// OCR backend: Windows system OCR or Tesseract.js (frontend WASM).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct OcrConfig {
+    /// `system` | `tesseract`
+    pub engine: String,
+}
+
+impl Default for OcrConfig {
+    fn default() -> Self {
+        Self {
+            engine: "system".into(),
+        }
+    }
+}
+
+impl OcrConfig {
+    pub fn is_tesseract(&self) -> bool {
+        self.engine.eq_ignore_ascii_case("tesseract")
     }
 }
 
@@ -188,6 +220,11 @@ fn normalize_config_langs(config: &mut AppConfig) {
     if config.general.source_lang.is_empty() {
         config.general.source_lang = "auto".into();
     }
+    let engine = config.ocr.engine.trim().to_ascii_lowercase();
+    config.ocr.engine = match engine.as_str() {
+        "tesseract" => "tesseract".into(),
+        _ => "system".into(),
+    };
 }
 
 #[cfg(test)]
@@ -218,6 +255,7 @@ active = "microsoft"
         assert!(parsed.general.hotkey_enabled);
         assert!(parsed.dictionary.enabled);
         assert!(parsed.dictionary.paths.is_empty());
+        assert_eq!(parsed.ocr.engine, "system");
     }
 
     #[test]

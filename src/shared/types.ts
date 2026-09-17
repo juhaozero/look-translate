@@ -67,6 +67,12 @@ export type AppConfig = {
     microsoft_api_key?: string | null;
     microsoft_region?: string | null;
     google_api_key?: string | null;
+    self_hosted_endpoint?: string | null;
+    self_hosted_secret?: string | null;
+  };
+  ocr: {
+    /** `system` | `tesseract` */
+    engine: string;
   };
   dictionary: {
     enabled: boolean;
@@ -89,6 +95,11 @@ export function emptyConfig(): AppConfig {
       microsoft_api_key: null,
       microsoft_region: null,
       google_api_key: null,
+      self_hosted_endpoint: null,
+      self_hosted_secret: null,
+    },
+    ocr: {
+      engine: "system",
     },
     dictionary: {
       enabled: true,

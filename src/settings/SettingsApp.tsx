@@ -15,8 +15,8 @@ import type {
   InstallRecommendedDictResult,
 } from "../shared/types";
 import { emptyConfig } from "../shared/types";
-import { ENGINES, SOURCE_LANGS, TARGET_LANGS, normalizeLangCode } from "../shared/options";
-import { EngineIcon, IconEdit } from "../shared/EngineIcon";
+import { ENGINES, OCR_ENGINES, SOURCE_LANGS, TARGET_LANGS, normalizeLangCode } from "../shared/options";
+import { EngineIcon, IconEdit, OcrEngineIcon } from "../shared/EngineIcon";
 import { HotkeyRecorder } from "./HotkeyRecorder";
 import {
   IconAbout,
@@ -91,8 +91,9 @@ export function SettingsApp() {
       ]);
       setInfo(appInfo);
       setPaths(appPaths);
-      setConfig(appConfig);
-      setSavedSnapshot(serializeConfig(appConfig));
+      const normalized = normalizeConfig(appConfig);
+      setConfig(normalized);
+      setSavedSnapshot(serializeConfig(normalized));
       setHotkeyStatus(statusInfo);
     } catch (error: unknown) {
       console.error(error);
@@ -233,6 +234,17 @@ export function SettingsApp() {
     setStatus(null);
   }
 
+  function selectOcrEngine(engineId: string) {
+    if (config.ocr.engine === engineId) {
+      return;
+    }
+    setConfig({
+      ...config,
+      ocr: { ...config.ocr, engine: engineId },
+    });
+    setStatus(null);
+  }
+
   function onEngineToggle(engineId: string, turnOn: boolean) {
     if (turnOn) {
       selectEngine(engineId);
@@ -242,6 +254,19 @@ export function SettingsApp() {
       setStatus({
         tone: "err",
         text: "请先打开其他引擎，不能关闭当前唯一服务",
+      });
+    }
+  }
+
+  function onOcrEngineToggle(engineId: string, turnOn: boolean) {
+    if (turnOn) {
+      selectOcrEngine(engineId);
+      return;
+    }
+    if (config.ocr.engine === engineId) {
+      setStatus({
+        tone: "err",
+        text: "请先打开其他 OCR，不能关闭当前唯一识别引擎",
       });
     }
   }
@@ -357,7 +382,7 @@ export function SettingsApp() {
                   onChange={(next) => updateGeneral("hotkey_ocr", next)}
                 />
                 <p className="settings-panel-foot">
-                  划词热键走剪贴板;OCR 热键截取指针附近固定区域识别，二者互不兜底。
+                  划词热键走剪贴板；OCR 热键打开框选层识别，二者互不兜底。
                 </p>
               </section>
               <section className="settings-panel">
@@ -393,7 +418,9 @@ export function SettingsApp() {
           ) : null}
 
           {nav === "service" ? (
+            <>
             <section className="service-list-shell" aria-label="翻译服务">
+              <h2 className="service-section-title">翻译服务</h2>
               <ul className="service-list">
                 {ENGINES.map((engine) => {
                   const active = config.engine.active === engine.value;
@@ -534,14 +561,136 @@ export function SettingsApp() {
                           </label>
                         </div>
                       ) : null}
+                      {expanded && engine.value === "self_hosted" ? (
+                        <div className="service-card-editor">
+                          <label className="service-field">
+                            <span>接口地址</span>
+                            <input
+                              type="url"
+                              autoComplete="off"
+                              className="settings-input"
+                              placeholder="https://xxx.workers.dev/"
+                              value={config.engine.self_hosted_endpoint ?? ""}
+                              onChange={(event) =>
+                                setConfig({
+                                  ...config,
+                                  engine: {
+                                    ...config.engine,
+                                    self_hosted_endpoint: event.target.value,
+                                  },
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="service-field">
+                            <span>访问密钥</span>
+                            <input
+                              type="password"
+                              autoComplete="off"
+                              className="settings-input"
+                              placeholder="与 Worker 中 SECRET_PASS 一致"
+                              value={config.engine.self_hosted_secret ?? ""}
+                              onChange={(event) =>
+                                setConfig({
+                                  ...config,
+                                  engine: {
+                                    ...config.engine,
+                                    self_hosted_secret: event.target.value,
+                                  },
+                                })
+                              }
+                            />
+                          </label>
+                        </div>
+                      ) : null}
                     </li>
                   );
                 })}
               </ul>
               <p className="settings-panel-foot service-list-foot">
-                同一时间仅一个引擎生效。打开开关即切换当前服务；关闭当前无效。
+                同一时间仅一个翻译引擎生效。打开开关即切换当前服务；关闭当前无效。
               </p>
             </section>
+
+            <section className="service-list-shell" aria-label="OCR 识别">
+              <h2 className="service-section-title">OCR 识别</h2>
+              <ul className="service-list">
+                {OCR_ENGINES.map((engine) => {
+                  const active = config.ocr.engine === engine.value;
+                  return (
+                    <li
+                      key={engine.value}
+                      className={
+                        active ? "service-card is-active" : "service-card"
+                      }
+                    >
+                      <div className="service-card-row">
+                        <button
+                          type="button"
+                          className="service-card-main"
+                          onClick={() => selectOcrEngine(engine.value)}
+                        >
+                          <OcrEngineIcon
+                            engine={engine.value}
+                            className="service-engine-icon"
+                          />
+                          <span className="service-engine-text">
+                            <span className="service-engine-name">
+                              {engine.label}
+                            </span>
+                            <span className="service-engine-sub">
+                              {engine.subtitle}
+                            </span>
+                          </span>
+                        </button>
+                        <div className="service-card-actions">
+                          <button
+                            type="button"
+                            className={
+                              active
+                                ? "settings-switch is-on"
+                                : "settings-switch"
+                            }
+                            role="switch"
+                            aria-checked={active}
+                            aria-label={`将 ${engine.label} 设为当前 OCR`}
+                            onClick={() =>
+                              onOcrEngineToggle(engine.value, !active)
+                            }
+                          >
+                            <span className="settings-switch-thumb" />
+                          </button>
+                          <span
+                            className="service-icon-btn is-spacer"
+                            aria-hidden="true"
+                          />
+                        </div>
+                      </div>
+                      {active ? (
+                        <div className="service-card-editor">
+                          <p className="service-card-editor-hint">
+                            {engine.hint}
+                          </p>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+              <p className="settings-panel-foot service-list-foot">
+                OCR 与翻译引擎独立配置。Tesseract.js 首次识别会下载 eng+chi_sim
+                模型（见{" "}
+                <a
+                  href="https://github.com/naptha/tesseract.js/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  tesseract.js
+                </a>
+                ）。
+              </p>
+            </section>
+            </>
           ) : null}
 
           {nav === "dictionary" ? (
@@ -762,7 +911,7 @@ export function SettingsApp() {
                 >
                   skywind3000/ECDICT
                 </a>
-                ，按需下载至 data/dicts/，不随安装包预装。
+                ，按需下载至 data/dicts/
               </p>
             </section>
           ) : null}
@@ -874,6 +1023,10 @@ function normalizeOptionalKey(value: string | null | undefined): string | null {
 }
 
 function normalizeConfig(config: AppConfig): AppConfig {
+  const ocrEngine =
+    config.ocr?.engine?.trim().toLowerCase() === "tesseract"
+      ? "tesseract"
+      : "system";
   return {
     ...config,
     general: {
@@ -888,6 +1041,13 @@ function normalizeConfig(config: AppConfig): AppConfig {
       microsoft_api_key: normalizeOptionalKey(config.engine.microsoft_api_key),
       microsoft_region: normalizeOptionalKey(config.engine.microsoft_region),
       google_api_key: normalizeOptionalKey(config.engine.google_api_key),
+      self_hosted_endpoint: normalizeOptionalKey(
+        config.engine.self_hosted_endpoint,
+      ),
+      self_hosted_secret: normalizeOptionalKey(config.engine.self_hosted_secret),
+    },
+    ocr: {
+      engine: ocrEngine,
     },
     dictionary: {
       ...config.dictionary,
@@ -913,6 +1073,15 @@ function validateConfig(config: AppConfig): string | null {
       config.general.hotkey_ocr.trim().toLowerCase()
   ) {
     return "划词热键与 OCR 热键不能相同";
+  }
+  if (config.engine.active === "self_hosted") {
+    const endpoint = (config.engine.self_hosted_endpoint ?? "").trim();
+    if (!endpoint) {
+      return "自建翻译需填写接口地址";
+    }
+    if (!/^https?:\/\//i.test(endpoint)) {
+      return "自建翻译地址须以 http:// 或 https:// 开头";
+    }
   }
   return null;
 }

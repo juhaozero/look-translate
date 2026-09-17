@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { recognizeWithTesseract } from "./tesseractOcr";
 import "./ocr-select.css";
 
 type Region = {
@@ -18,6 +19,12 @@ type DragState = {
   currentY: number;
 };
 
+type OcrConfirmResult =
+  | { kind: "done" }
+  | { kind: "tesseract"; imageDataUrl: string };
+
+const MIN_SELECT_PX = 4;
+
 function normalizeDrag(drag: DragState): Region {
   const left = Math.min(drag.originX, drag.currentX);
   const top = Math.min(drag.originY, drag.currentY);
@@ -25,8 +32,6 @@ function normalizeDrag(drag: DragState): Region {
   const height = Math.abs(drag.currentY - drag.originY);
   return { left, top, width, height };
 }
-
-const MIN_SELECT_PX = 4;
 
 export function OcrSelectApp() {
   const [hint, setHint] = useState<Region | null>(null);
@@ -74,12 +79,12 @@ export function OcrSelectApp() {
     }
     confirming.current = true;
     setBusy(true);
-    setStatus(null);
+    setStatus("识别中…");
     try {
       const win = getCurrentWindow();
       const scale = await win.scaleFactor();
       const pos = await win.outerPosition();
-      await invoke("confirm_ocr_region", {
+      const result = await invoke<OcrConfirmResult>("confirm_ocr_region", {
         region: {
           left: Math.round(pos.x + region.left * scale),
           top: Math.round(pos.y + region.top * scale),
@@ -87,11 +92,38 @@ export function OcrSelectApp() {
           height: Math.max(1, Math.round(region.height * scale)),
         },
       });
+
+      switch (result.kind) {
+        case "done":
+          break;
+        case "tesseract": {
+          const imageDataUrl =
+            result.imageDataUrl ??
+            (result as { image_data_url?: string }).image_data_url;
+          if (!imageDataUrl) {
+            throw new Error("未收到截图数据，请重试");
+          }
+          setStatus("Tesseract 识别中…");
+          const text = await recognizeWithTesseract(imageDataUrl, (message) =>
+            setStatus(message),
+          );
+          await invoke("submit_ocr_text", { text });
+          break;
+        }
+        default: {
+          const _exhaustive: never = result;
+          return _exhaustive;
+        }
+      }
     } catch (err) {
       console.error(err);
       confirming.current = false;
       setBusy(false);
-      setStatus("识别失败，可重选后重试");
+      const message =
+        err instanceof Error && err.message.trim()
+          ? err.message
+          : "识别失败，请按 OCR 热键重试";
+      setStatus(message);
     }
   }, []);
 
@@ -161,8 +193,7 @@ export function OcrSelectApp() {
     >
       <div className="ocr-select-hint">
         拖拽选择识别区域 · Enter 确认建议框 · Esc 取消
-        {busy ? " · 识别中…" : null}
-        {status ? ` · ${status}` : null}
+        {busy || status ? ` · ${status ?? "识别中…"}` : null}
       </div>
       {active ? (
         <div

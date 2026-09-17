@@ -26,7 +26,9 @@
 .settings-layout {
   display: grid;
   grid-template-columns: 196px minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   background: var(--lt-bg);
   color: var(--lt-text);
   font-size: var(--lt-font);
@@ -113,6 +115,8 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: var(--lt-surface);
 }
 
@@ -150,6 +154,7 @@
 
 .settings-content {
   flex: 1;
+  min-height: 0;
   padding: 8px 28px 28px;
   overflow: auto;
 }
@@ -758,6 +763,14 @@
   border-radius: var(--lt-radius);
   padding: 12px;
   margin-bottom: 14px;
+}
+
+.service-section-title {
+  margin: 0 0 10px;
+  padding: 2px 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--lt-muted, #64748b);
 }
 
 .service-list {

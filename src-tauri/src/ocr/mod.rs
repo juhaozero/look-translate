@@ -120,27 +120,14 @@ fn begin_ocr_session_windows(
     })
 }
 
-/// Crop the session snapshot to `region` (physical screen coords) and OCR.
-pub fn capture_ocr_payload_from_session(
+/// Crop (+ pad + upscale) from session for OCR backends.
+pub fn prepare_region_image(
     session: &OcrSession,
     left: i32,
     top: i32,
     width: i32,
     height: i32,
-) -> CapturePayload {
-    match ocr_from_session(session, left, top, width, height) {
-        Ok(text) => CapturePayload::ok(text, "ocr"),
-        Err(err) => CapturePayload::fail(err, "ocr"),
-    }
-}
-
-fn ocr_from_session(
-    session: &OcrSession,
-    left: i32,
-    top: i32,
-    width: i32,
-    height: i32,
-) -> Result<String, String> {
+) -> Result<(Vec<u8>, u32, u32), String> {
     let (left, top, width, height) = clamp_rect_to_monitor(
         left,
         top,
@@ -155,7 +142,6 @@ fn ocr_from_session(
         return Err("选区太小，请拖出更大范围".into());
     }
 
-    // Pad a few pixels so glyphs near the edge aren't clipped.
     let (left, top, width, height) = expand_rect_in_monitor(
         left,
         top,
@@ -177,11 +163,67 @@ fn ocr_from_session(
         width,
         height,
     )?;
+    Ok(upscale_bgra_for_ocr(&crop, width as u32, height as u32))
+}
+
+/// Encode BGRA8 as a PNG data URL (`data:image/png;base64,...`).
+pub fn bgra_to_png_data_url(pixels: &[u8], width: u32, height: u32) -> Result<String, String> {
+    use base64::Engine as _;
+    use image::ImageEncoder;
+
+    let expected = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|n| n.checked_mul(4))
+        .ok_or_else(|| "图像尺寸无效".to_string())?;
+    if pixels.len() != expected {
+        return Err("像素缓冲与尺寸不匹配".into());
+    }
+
+    // PNG expects RGBA; our capture is BGRA.
+    let mut rgba = Vec::with_capacity(pixels.len());
+    for chunk in pixels.chunks_exact(4) {
+        rgba.extend_from_slice(&[chunk[2], chunk[1], chunk[0], chunk[3]]);
+    }
+
+    let mut png = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut png)
+        .write_image(
+            &rgba,
+            width,
+            height,
+            image::ExtendedColorType::Rgba8,
+        )
+        .map_err(|e| format!("PNG 编码失败: {e}"))?;
+
+    let b64 = base64::engine::general_purpose::STANDARD.encode(png);
+    Ok(format!("data:image/png;base64,{b64}"))
+}
+
+/// Crop the session snapshot to `region` (physical screen coords) and OCR (system).
+pub fn capture_ocr_payload_from_session(
+    session: &OcrSession,
+    left: i32,
+    top: i32,
+    width: i32,
+    height: i32,
+) -> CapturePayload {
+    match ocr_from_session(session, left, top, width, height) {
+        Ok(text) => CapturePayload::ok(text, "ocr"),
+        Err(err) => CapturePayload::fail(err, "ocr"),
+    }
+}
+
+fn ocr_from_session(
+    session: &OcrSession,
+    left: i32,
+    top: i32,
+    width: i32,
+    height: i32,
+) -> Result<String, String> {
+    let (pixels, ow, oh) = prepare_region_image(session, left, top, width, height)?;
 
     #[cfg(windows)]
     {
-        // Windows.Media.Ocr often returns empty on small bitmaps; upscale first.
-        let (pixels, ow, oh) = upscale_bgra_for_ocr(&crop, width as u32, height as u32);
         let text = recognize_bgra(&pixels, ow, oh)?;
         normalize_captured_text(&text).map_err(|_| {
             "OCR 未识别到文字（可调整选区后重试）".to_string()
@@ -189,7 +231,7 @@ fn ocr_from_session(
     }
     #[cfg(not(windows))]
     {
-        let _ = crop;
+        let _ = (pixels, ow, oh);
         Err("当前仅支持 Windows OCR".into())
     }
 }

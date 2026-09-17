@@ -32,7 +32,7 @@
 |---|---|
 | 独立 OCR 热键 ✅ | 默认 `Ctrl+Shift+S`，可改；与划词热键互不兜底 |
 | 截屏 ✅ | 框选层；预标指针附近约 480×160，可拖拽调整 |
-| 识别 ✅ | Windows.Media.Ocr |
+| 识别 ✅ | 可切换：系统 OCR / Tesseract.js（eng+chi_sim） |
 | 接入同一流水线 ✅ | OCR 文本 → translate + 短词词典 |
 
 ## Phase 3 — 增强（可选，非必须）

@@ -67,7 +67,8 @@ code {
   box-sizing: border-box;
 }
 
-.engine-icon img {
+.engine-icon img,
+.engine-icon svg {
   width: 20px;
   height: 20px;
   object-fit: contain;

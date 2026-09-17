@@ -8,37 +8,6 @@ type IconProps = {
   title?: string;
 };
 
-/** Brand marks for engines; web variants share a unified 「网」badge. */
-export function EngineIcon({
-  engine,
-  className,
-  size = "md",
-}: {
-  engine: EngineId | string;
-  className?: string;
-  size?: "sm" | "md";
-}) {
-  const web = engine === "microsoft_web" || engine === "google_web";
-  const src = resolveBrandSrc(engine);
-  const label = resolveBrandLabel(engine);
-
-  return (
-    <span
-      className={
-        size === "sm"
-          ? `engine-icon engine-icon-sm${web ? " has-web" : ""}${className ? ` ${className}` : ""}`
-          : `engine-icon${web ? " has-web" : ""}${className ? ` ${className}` : ""}`
-      }
-      title={label}
-      aria-label={label}
-      role="img"
-    >
-      <img src={src} alt="" draggable={false} />
-      {web ? <span className="engine-icon-web" aria-hidden="true">网</span> : null}
-    </span>
-  );
-}
-
 function resolveBrandSrc(engine: string): string {
   switch (engine) {
     case "microsoft":
@@ -63,9 +32,113 @@ function resolveBrandLabel(engine: string): string {
       return "Google";
     case "google_web":
       return "Google 网页";
+    case "self_hosted":
+      return "自建翻译";
+    case "system":
+      return "系统 OCR";
+    case "tesseract":
+      return "Tesseract.js";
     default:
       return engine;
   }
+}
+
+/** Brand marks for engines; web variants share a unified 「网」badge. */
+export function EngineIcon({
+  engine,
+  className,
+  size = "md",
+}: {
+  engine: EngineId | string;
+  className?: string;
+  size?: "sm" | "md";
+}) {
+  if (engine === "self_hosted") {
+    return (
+      <span
+        className={
+          size === "sm"
+            ? `engine-icon engine-icon-sm${className ? ` ${className}` : ""}`
+            : `engine-icon${className ? ` ${className}` : ""}`
+        }
+        title="自建翻译"
+        aria-label="自建翻译"
+        role="img"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="4" fill="#C2410C" />
+          <path
+            d="M8 12h8M12 8v8"
+            stroke="#FFF7ED"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+          />
+          <circle cx="12" cy="12" r="5.5" stroke="#FFEDD5" strokeWidth="1.25" fill="none" />
+        </svg>
+      </span>
+    );
+  }
+
+  const web = engine === "microsoft_web" || engine === "google_web";
+  const src = resolveBrandSrc(engine);
+  const label = resolveBrandLabel(engine);
+
+  return (
+    <span
+      className={
+        size === "sm"
+          ? `engine-icon engine-icon-sm${web ? " has-web" : ""}${className ? ` ${className}` : ""}`
+          : `engine-icon${web ? " has-web" : ""}${className ? ` ${className}` : ""}`
+      }
+      title={label}
+      aria-label={label}
+      role="img"
+    >
+      <img src={src} alt="" draggable={false} />
+      {web ? <span className="engine-icon-web" aria-hidden="true">网</span> : null}
+    </span>
+  );
+}
+
+/** Simple marks for OCR backends (no external brand assets). */
+export function OcrEngineIcon({
+  engine,
+  className,
+}: {
+  engine: string;
+  className?: string;
+}) {
+  const label = resolveBrandLabel(engine);
+  return (
+    <span
+      className={`engine-icon${className ? ` ${className}` : ""}`}
+      title={label}
+      aria-label={label}
+      role="img"
+    >
+      {engine === "tesseract" ? (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="4" fill="#0F766E" />
+          <path
+            d="M7 8h10M12 8v9M9.5 17h5"
+            stroke="#ECFDF5"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+          />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="4" fill="#1D4ED8" />
+          <path
+            d="M7 9h10M7 12h7M7 15h9"
+            stroke="#EFF6FF"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
+    </span>
+  );
 }
 
 export function IconEdit({ className }: IconProps) {

@@ -3,6 +3,7 @@
 mod google;
 mod microsoft;
 mod microsoft_web;
+mod self_hosted;
 mod state;
 
 use async_trait::async_trait;
@@ -14,6 +15,7 @@ use crate::lang::normalize_lang_code;
 pub use google::{GoogleCloudTranslator, GoogleWebTranslator};
 pub use microsoft::MicrosoftTranslator;
 pub use microsoft_web::MicrosoftWebTranslator;
+pub use self_hosted::SelfHostedTranslator;
 pub use state::TranslationState;
 
 #[derive(Debug, Clone)]
@@ -152,8 +154,12 @@ pub async fn translate_with_config(
             let translator = GoogleWebTranslator::new(client);
             translator.translate(&req).await
         }
+        "self_hosted" => {
+            let translator = SelfHostedTranslator::from_config(config, client)?;
+            translator.translate(&req).await
+        }
         other => Err(format!(
-            "未知翻译引擎 `{other}`（当前支持：microsoft / microsoft_web / google / google_web）"
+            "未知翻译引擎 `{other}`（当前支持：microsoft / microsoft_web / google / google_web / self_hosted）"
         )),
     }
 }
