@@ -9,7 +9,7 @@ Windows 划词翻译小工具（Tauri 2 + React）。
 | [docs/product-decisions.md](docs/product-decisions.md) | 已锁定产品决策 |
 | [docs/architecture.md](docs/architecture.md) | 整体架构与模块 |
 | [docs/roadmap.md](docs/roadmap.md) | 分期与 MVP 验收 |
-| [docs/packaging.md](docs/packaging.md) | Windows 安装包与 `data/` 卸载策略 |
+| [docs/packaging.md](docs/packaging.md) | Windows 安装包、`data/` 卸载策略、GitHub 发版 |
 
 ## 开发
 
@@ -28,7 +28,7 @@ npm run tauri:build:msi    # 可选 MSI
 npm run tauri:build        # NSIS + MSI
 ```
 
-配置目录为安装（或 exe）旁的 `data/`。卸载行为见 [docs/packaging.md](docs/packaging.md)。
+配置目录为安装（或 exe）旁的 `data/`。卸载与 **GitHub 打 tag 发版**（draft Release + changelog）见 [docs/packaging.md](docs/packaging.md#github-发版)。
 
 ## 当前进度
 

@@ -46,7 +46,45 @@ src-tauri/target/debug/data/
 
 ## 签名（可选）
 
-正式分发建议对安装包与 exe 做代码签名。Tauri 可通过环境变量 / `bundle.windows.certificateThumbprint` 等配置；本仓库 MVP 不强制签名。
+正式分发建议对安装包与 exe 做代码签名。Tauri 可通过环境变量 / `bundle.windows.certificateThumbprint` 等配置；本仓库 MVP 不强制签名。CI 发版流水线当前也不签名。
+
+## GitHub 发版
+
+流水线：`.github/workflows/releases.yml`。
+
+### 触发
+
+| 触发 | 行为 |
+|---|---|
+| 推送正式标签 `vX.Y.Z` | 生成版本间隔 changelog → 校验版本 → 打 NSIS + MSI → 创建 **draft** Release |
+| Actions 里手动 `workflow_dispatch` | 仅构建并把安装包上传为 workflow artifact，**不**创建 Release |
+
+不支持预发布标签（如 `v1.0.0-rc.1`）；试包请用手动触发。
+
+### 发版步骤
+
+1. 将下列三处版本改为同一 `X.Y.Z`：
+   - `package.json`
+   - `src-tauri/tauri.conf.json`
+   - `src-tauri/Cargo.toml`
+2. 提交（建议 Conventional Commits，便于 changelog 分类），例如：`chore: release v0.2.0`。
+3. 打标签并推送：
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+4. 等待 Actions 完成；在 GitHub Releases 打开对应 **draft**，核对安装包与 changelog。
+5. 确认无误后手动 **Publish release**。
+
+### 版本校验
+
+标签必须是 `vX.Y.Z`，且去掉 `v` 后与上述三个文件中的版本字符串完全一致，否则流水线失败。
+
+### Changelog
+
+使用 `mikepenz/release-changelog-builder-action`，按上一标签到当前标签的 commit 生成。按 Conventional Commits 前缀分类（`feat` / `fix` / `chore` 等）；无法分类的提交收进「未分类提交」。
 
 ## 验收清单
 
