@@ -20,38 +20,32 @@ active = "microsoft"
 # cloudflare_endpoint = "https://your-worker.workers.dev/"
 # cloudflare_secret = "123456"
 #
-# Config-driven profile example (DeepL Free API) — see docs/adr/0001-config-driven-engines.md
-# active = "deepl"
+# Config-driven engines: settings can insert [engines.custom], or copy samples from
+# docs/engine-profiles.md (includes a full DeepL example).
+# active = "custom"
 
-# [engines.deepl]
-# label = "DeepL"
+# [engines.custom]
+# label = "自定义 HTTP"
 # method = "POST"
-# url = "https://api-free.deepl.com/v2/translate"
-# auth = "header"
-# auth_header = "Authorization"
-# auth_value = "DeepL-Auth-Key {{extra.api_key}}"
-# body_type = "form"
-# text_path = "translations.0.text"
-# error_path = "message"
+# url = "https://example.com/v1/translate"
+# auth = "bearer"
+# token = "{{extra.api_key}}"
+# body_type = "json"
+# text_path = "data.text"
+# error_path = "error.message"
 #
-# [engines.deepl.body]
+# [engines.custom.body]
 # text = "{{text}}"
-# target_lang = "{{target_lang}}"
 # source_lang = "{{source_lang}}"
+# target_lang = "{{target_lang}}"
 #
-# [engines.deepl.extra]
-# api_key = "your-deepl-auth-key"
+# [engines.custom.extra]
+# api_key = "your-api-key"
 #
-# [engines.deepl.lang_map]
-# zh-CN = "ZH"
-# zh-TW = "ZH"
-# en = "EN"
-# ja = "JA"
-# ko = "KO"
-# fr = "FR"
-# de = "DE"
-# es = "ES"
-# auto = ""
+# [engines.custom.lang_map]
+# zh-CN = "zh-CN"
+# en = "en"
+# auto = "auto"
 
 [ocr]
 engine = "system"

@@ -55,6 +55,12 @@ export type InstallRecommendedDictResult = {
   config: AppConfig;
 };
 
+export type EnsureProfileResult = {
+  created: boolean;
+  message: string;
+  config: AppConfig;
+};
+
 export type AppConfig = {
   general: {
     target_lang: string;

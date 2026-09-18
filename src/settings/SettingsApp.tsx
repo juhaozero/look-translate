@@ -11,6 +11,7 @@ import type {
   AppConfig,
   AppInfo,
   AppPaths,
+  EnsureProfileResult,
   HotkeyStatus,
   InstallRecommendedDictResult,
 } from "../shared/types";
@@ -73,6 +74,7 @@ export function SettingsApp() {
   const [loading, setLoading] = useState(true);
   const [installingDict, setInstallingDict] = useState(false);
   const [editingEngine, setEditingEngine] = useState<string | null>(null);
+  const [profileBusy, setProfileBusy] = useState(false);
 
   const dirty = useMemo(
     () => serializeConfig(config) !== savedSnapshot && savedSnapshot.length > 0,
@@ -215,6 +217,88 @@ export function SettingsApp() {
       });
     } finally {
       setInstallingDict(false);
+    }
+  }
+
+  async function openConfigFile() {
+    setStatus(null);
+    try {
+      await invoke("open_config_file");
+      setStatus({
+        tone: "ok",
+        text: "已用系统默认程序打开 config.toml；改完后点「重新加载配置」。",
+      });
+    } catch (error) {
+      console.error(error);
+      setStatus({ tone: "err", text: String(error) });
+    }
+  }
+
+  async function reloadConfigFromDisk() {
+    if (dirty) {
+      const ok = window.confirm(
+        "当前有未保存的修改，重新加载将丢弃这些修改。继续？",
+      );
+      if (!ok) {
+        return;
+      }
+    }
+    setStatus(null);
+    try {
+      const next = await invoke<AppConfig>("reload_config");
+      setConfig(next);
+      setSavedSnapshot(serializeConfig(next));
+      setStatus({ tone: "ok", text: "已从磁盘重新加载配置" });
+    } catch (error) {
+      console.error(error);
+      setStatus({ tone: "err", text: String(error) });
+    }
+  }
+
+  async function addCustomTemplate() {
+    if (profileBusy) return;
+    if (dirty) {
+      const ok = window.confirm(
+        "添加模板会写入配置文件。若有未保存修改，建议先保存。继续？",
+      );
+      if (!ok) {
+        return;
+      }
+    }
+    setProfileBusy(true);
+    setStatus(null);
+    try {
+      const result = await invoke<EnsureProfileResult>(
+        "ensure_custom_engine_profile",
+      );
+      setConfig(result.config);
+      setSavedSnapshot(serializeConfig(result.config));
+      setStatus({
+        tone: "ok",
+        text: result.message,
+      });
+      if (result.created) {
+        setEditingEngine("custom");
+      }
+    } catch (error) {
+      console.error(error);
+      setStatus({ tone: "err", text: String(error) });
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  async function openEngineProfilesDoc() {
+    setStatus(null);
+    try {
+      await invoke("open_engine_profiles_doc");
+      setStatus({ tone: "ok", text: "已打开自定义引擎填写说明" });
+    } catch (error) {
+      console.error(error);
+      setStatus({
+        tone: "err",
+        text: `${String(error)}（也可直接查看仓库 docs/engine-profiles.md）`,
+      });
     }
   }
 
@@ -502,6 +586,22 @@ export function SettingsApp() {
                           <p className="service-card-editor-hint">
                             {engine.hint}
                           </p>
+                          <div className="service-profile-actions">
+                            <button
+                              type="button"
+                              className="settings-btn settings-btn-ghost"
+                              onClick={() => void openConfigFile()}
+                            >
+                              打开配置文件
+                            </button>
+                            <button
+                              type="button"
+                              className="settings-btn settings-btn-ghost"
+                              onClick={() => void reloadConfigFromDisk()}
+                            >
+                              重新加载配置
+                            </button>
+                          </div>
                         </div>
                       ) : null}
                       {expanded && engine.value === "microsoft" ? (
@@ -622,6 +722,46 @@ export function SettingsApp() {
               <p className="settings-panel-foot service-list-foot">
                 同一时间仅一个翻译引擎生效。打开开关即切换当前服务；关闭当前无效。
               </p>
+              <div className="service-custom-engines">
+                <p className="service-custom-engines-title">自定义引擎（config.toml）</p>
+                <p className="service-custom-engines-desc">
+                  在{" "}
+                  <code>{paths?.configPath ?? "data/config.toml"}</code>{" "}
+                  编写 <code>[engines.*]</code>
+                  。可插入通用 HTTP 骨架，再按文档改成 DeepL 等任意厂商。
+                </p>
+                <div className="service-profile-actions">
+                  <button
+                    type="button"
+                    className="settings-btn settings-btn-ghost"
+                    onClick={() => void openConfigFile()}
+                  >
+                    打开配置文件
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-btn settings-btn-ghost"
+                    onClick={() => void reloadConfigFromDisk()}
+                  >
+                    重新加载配置
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-btn settings-btn-ghost"
+                    onClick={() => void openEngineProfilesDoc()}
+                  >
+                    填写说明
+                  </button>
+                  <button
+                    type="button"
+                    className="settings-btn"
+                    disabled={profileBusy}
+                    onClick={() => void addCustomTemplate()}
+                  >
+                    {profileBusy ? "处理中…" : "添加通用模板"}
+                  </button>
+                </div>
+              </div>
             </section>
 
             <section className="service-list-shell" aria-label="OCR 识别">

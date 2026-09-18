@@ -17,8 +17,8 @@ _Avoid_: 插件、脚本引擎、自建网关（那是另一条扩展路径）
 _Avoid_: 默认引擎（易与出厂默认混淆）
 
 **Engine Profile**:
-一份以 id 命名的 Config-driven 配置（如 `engines.deepl`）；用户通过把 Engine Active 设为该 id 来启用。设置页只读展示并可切换；展示名用可选 `label`（缺省为 id）；图标用统一「自定义」占位，不支持自定义图标文件。编辑仍在 `config.toml`。
-_Avoid_: 插件、扩展包、http 单槽
+一份以 id 命名的 Config-driven 配置（如 `engines.custom`）；用户通过把 Engine Active 设为该 id 来启用。设置页可插入通用 HTTP 骨架、打开配置与填写说明（`docs/engine-profiles.md`，含 DeepL 等厂商示例）；展示名用可选 `label`。
+_Avoid_: 插件、扩展包、强制绑定某一商业引擎
 
 **Auth Mode**:
 Config-driven Engine 请求鉴权的种类。第一版支持：`none`、`header`、`query`、`bearer`、`basic`。不含云厂商签名（如腾讯 TC3）。

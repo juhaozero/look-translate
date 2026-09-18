@@ -112,7 +112,7 @@ look-translate/
 - 引擎：`microsoft`（Azure Translator Text API v3）；`microsoft_web`（非官方 Bing 网页，无 Key）；`google`（Cloud Translation API v2 + Key）；`google_web`（非官方 gtx，无 Key）；`cloudflare`（Cloudflare Workers / translate-api）；以及 TOML `[engines.<id>]` Config-driven Profile（见 `docs/adr/0001-config-driven-engines.md`）
 - 语言：设置侧统一 Google 风格（`zh-CN` / `zh-TW`）；读配置兼容旧 `zh-Hans` / `zh-Hant`；微软系引擎内反向映射；`source_lang=auto` 时不传 `from`（Cloudflare 引擎则按 `en`）；默认 `target_lang=zh-CN`
 - 代理：`follow_system_proxy=true` 时走 reqwest system-proxy；否则 `no_proxy()`
-- 配置：`microsoft_api_key` / `microsoft_region`；`google_api_key`（仅官方 Google）；`cloudflare_endpoint` / `cloudflare_secret`（兼容旧 `self_hosted_*`）；自定义引擎见 `[engines.*]`
+- 配置：`microsoft_api_key` / `microsoft_region`；`google_api_key`（仅官方 Google）；`cloudflare_endpoint` / `cloudflare_secret`（兼容旧 `self_hosted_*`）；自定义引擎见 `[engines.*]` 与 `docs/engine-profiles.md`
 - 流水线：取词成功后异步翻译；事件 `translation-updated`（loading/ok/error）
 - 命令：`get_last_translation` / `translate_text`
 

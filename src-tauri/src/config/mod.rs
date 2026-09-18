@@ -1,11 +1,15 @@
 //! Portable config under install-dir `data/`.
 
+mod templates;
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
 use serde::{Deserialize, Serialize};
+
+pub use templates::{custom_http_profile, CUSTOM_PROFILE_ID};
 
 pub const CONFIG_FILE_NAME: &str = "config.toml";
 pub const DATA_DIR_NAME: &str = "data";

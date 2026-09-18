@@ -1,7 +1,9 @@
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State};
 
-use crate::config::{save_to_path, AppConfig, ConfigState};
+use crate::config::{
+    custom_http_profile, load_from_path, save_to_path, AppConfig, ConfigState, CUSTOM_PROFILE_ID,
+};
 use crate::dictionary::{
     install_recommended_dictionary, recommended_mdx_path, DictionaryState,
     InstallRecommendedDictResult, RECOMMENDED_DICT_REL_PATH,
@@ -67,7 +69,87 @@ pub fn save_config(
     }
     // serialize_config normalizes legacy zh-Hans / zh-Hant on write.
     save_to_path(&state.paths.config_path, &config)?;
-    let saved = crate::config::load_from_path(&state.paths.config_path)?;
+    let saved = load_from_path(&state.paths.config_path)?;
+    apply_saved_config(&app, &state, saved)
+}
+
+/// Re-read `data/config.toml` into memory (after external edits).
+#[tauri::command]
+pub fn reload_config(app: AppHandle, state: State<'_, ConfigState>) -> Result<AppConfig, String> {
+    let loaded = load_from_path(&state.paths.config_path)?;
+    apply_saved_config(&app, &state, loaded)
+}
+
+/// Open the portable config file with the OS default editor.
+#[tauri::command]
+pub fn open_config_file(state: State<'_, ConfigState>) -> Result<(), String> {
+    let path = &state.paths.config_path;
+    if !path.exists() {
+        let guard = state
+            .config
+            .read()
+            .map_err(|_| "config lock poisoned".to_string())?;
+        save_to_path(path, &guard)?;
+    }
+    open_path_with_default_app(path)
+}
+
+/// Open `docs/engine-profiles.md` when present next to the install / repo.
+#[tauri::command]
+pub fn open_engine_profiles_doc(state: State<'_, ConfigState>) -> Result<(), String> {
+    let path = resolve_engine_profiles_doc(&state.paths.data_dir)
+        .ok_or_else(|| {
+            "未找到 docs/engine-profiles.md（开发时在仓库 docs/ 下；发布包可查看项目文档）".to_string()
+        })?;
+    open_path_with_default_app(&path)
+}
+
+/// Insert a generic HTTP Engine Profile if `engines.custom` is missing.
+#[tauri::command]
+pub fn ensure_custom_engine_profile(
+    app: AppHandle,
+    state: State<'_, ConfigState>,
+) -> Result<EnsureProfileResult, String> {
+    let mut config = state
+        .config
+        .read()
+        .map_err(|_| "config lock poisoned".to_string())?
+        .clone();
+
+    if config.engines.contains_key(CUSTOM_PROFILE_ID) {
+        return Ok(EnsureProfileResult {
+            created: false,
+            message: "已存在 [engines.custom]。请打开配置文件按 docs/engine-profiles.md 填写，或改名后再添加。".into(),
+            config,
+        });
+    }
+
+    config
+        .engines
+        .insert(CUSTOM_PROFILE_ID.into(), custom_http_profile());
+    save_to_path(&state.paths.config_path, &config)?;
+    let saved = load_from_path(&state.paths.config_path)?;
+    let saved = apply_saved_config(&app, &state, saved)?;
+    Ok(EnsureProfileResult {
+        created: true,
+        message: "已添加通用 HTTP 模板 [engines.custom]。请打开配置文件填写 url/鉴权/响应路径；厂商示例见文档 engine-profiles。".into(),
+        config: saved,
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnsureProfileResult {
+    pub created: bool,
+    pub message: String,
+    pub config: AppConfig,
+}
+
+fn apply_saved_config(
+    app: &AppHandle,
+    state: &State<'_, ConfigState>,
+    saved: AppConfig,
+) -> Result<AppConfig, String> {
     {
         let mut guard = state
             .config
@@ -75,7 +157,7 @@ pub fn save_config(
             .map_err(|_| "config lock poisoned".to_string())?;
         *guard = saved.clone();
     }
-    hotkey::apply(&app, &saved)?;
+    hotkey::apply(app, &saved)?;
     if let Some(tray) = app.try_state::<TrayHotkeyToggle>() {
         let _ = tray.item.set_checked(saved.general.hotkey_enabled);
     }
@@ -83,6 +165,51 @@ pub fn save_config(
         dict.invalidate();
     }
     Ok(saved)
+}
+
+fn open_path_with_default_app(path: &std::path::Path) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &path.to_string_lossy()])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("打开文件失败: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| format!("打开文件失败: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| format!("打开文件失败: {e}"))?;
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err("当前平台不支持打开该文件".into())
+}
+
+/// `data/` is next to the exe; docs may live at repo root or beside install dir.
+fn resolve_engine_profiles_doc(data_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let candidates = [
+        data_dir.join("../docs/engine-profiles.md"),
+        data_dir.join("../../docs/engine-profiles.md"),
+        data_dir.join("../../../docs/engine-profiles.md"),
+        data_dir.join("docs/engine-profiles.md"),
+    ];
+    candidates.into_iter().find(|p| p.is_file()).map(|p| {
+        std::fs::canonicalize(&p).unwrap_or(p)
+    })
 }
 
 #[tauri::command]
