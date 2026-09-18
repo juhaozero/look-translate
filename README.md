@@ -18,5 +18,3 @@ npm run tauri:build:nsis   # 推荐：当前用户安装
 npm run tauri:build:msi    # 可选 MSI
 npm run tauri:build        # NSIS + MSI
 ```
-
-配置目录为安装（或 exe）旁的 `data/`。卸载与 **GitHub 打 tag 发版**（draft Release + changelog）见 [docs/packaging.md](docs/packaging.md#github-发版)。
