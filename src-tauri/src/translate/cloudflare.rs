@@ -1,4 +1,4 @@
-//! Self-hosted translation API (Cloudflare Workers / translate-api compatible).
+//! Cloudflare Workers translation API (translate-api compatible).
 //!
 //! Protocol (GET query):
 //!   text, source_language, target_language, secret
@@ -16,30 +16,30 @@ use crate::lang::normalize_lang_code;
 
 use super::{TranslationRequest, TranslationResult, Translator};
 
-pub struct SelfHostedTranslator {
+pub struct CloudflareTranslator {
     client: Client,
     endpoint: String,
     secret: Option<String>,
 }
 
-impl SelfHostedTranslator {
+impl CloudflareTranslator {
     pub fn from_config(config: &AppConfig, client: Client) -> Result<Self, String> {
         let endpoint = config
             .engine
-            .self_hosted_endpoint
+            .cloudflare_endpoint
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .ok_or_else(|| "自建翻译未配置接口地址（endpoint）".to_string())?
+            .ok_or_else(|| "Cloudflare 翻译未配置 Worker 地址（endpoint）".to_string())?
             .to_string();
 
         if !(endpoint.starts_with("https://") || endpoint.starts_with("http://")) {
-            return Err("自建翻译地址须以 http:// 或 https:// 开头".into());
+            return Err("Cloudflare 翻译地址须以 http:// 或 https:// 开头".into());
         }
 
         let secret = config
             .engine
-            .self_hosted_secret
+            .cloudflare_secret
             .as_deref()
             .map(str::trim)
             .filter(|s| !s.is_empty())
@@ -54,9 +54,9 @@ impl SelfHostedTranslator {
 }
 
 #[async_trait]
-impl Translator for SelfHostedTranslator {
+impl Translator for CloudflareTranslator {
     fn id(&self) -> &'static str {
-        "self_hosted"
+        "cloudflare"
     }
 
     async fn translate(&self, req: &TranslationRequest) -> Result<TranslationResult, String> {
@@ -71,7 +71,7 @@ impl Translator for SelfHostedTranslator {
         let source = to_m2m_source(&req.source_lang);
 
         let mut url = reqwest::Url::parse(&self.endpoint)
-            .map_err(|e| format!("自建翻译地址无效: {e}"))?;
+            .map_err(|e| format!("Cloudflare 翻译地址无效: {e}"))?;
         {
             let mut pairs = url.query_pairs_mut();
             pairs.append_pair("text", req.text.trim());
@@ -87,40 +87,42 @@ impl Translator for SelfHostedTranslator {
             .get(url)
             .send()
             .await
-            .map_err(|e| format!("自建翻译请求失败: {e}"))?;
+            .map_err(|e| format!("Cloudflare 翻译请求失败: {e}"))?;
 
         let status = response.status();
         let raw = response
             .text()
             .await
-            .map_err(|e| format!("读取自建翻译响应失败: {e}"))?;
+            .map_err(|e| format!("读取 Cloudflare 翻译响应失败: {e}"))?;
 
         if !status.is_success() {
             return Err(format!(
-                "自建翻译 HTTP 错误 ({status})：{}",
+                "Cloudflare 翻译 HTTP 错误 ({status})：{}",
                 truncate(&raw, 200)
             ));
         }
 
         let body: ApiResponse = serde_json::from_str(&raw).map_err(|e| {
-            format!("解析自建翻译响应失败: {e}; body={}", truncate(&raw, 200))
+            format!(
+                "解析 Cloudflare 翻译响应失败: {e}; body={}",
+                truncate(&raw, 200)
+            )
         })?;
 
         if body.code.unwrap_or(-1) != 0 {
             let msg = body.msg.unwrap_or_else(|| "未知错误".into());
-            return Err(format!("自建翻译失败（code={}）: {msg}", body.code.unwrap_or(-1)));
+            return Err(format!(
+                "Cloudflare 翻译失败（code={}）: {msg}",
+                body.code.unwrap_or(-1)
+            ));
         }
 
-        let text = body
-            .text
-            .unwrap_or_default()
-            .trim()
-            .to_string();
+        let text = body.text.unwrap_or_default().trim().to_string();
         if text.is_empty() {
-            return Err("自建翻译返回空译文".into());
+            return Err("Cloudflare 翻译返回空译文".into());
         }
         if text.starts_with("ERROR") {
-            return Err(format!("自建翻译模型错误: {text}"));
+            return Err(format!("Cloudflare 翻译模型错误: {text}"));
         }
 
         Ok(TranslationResult {

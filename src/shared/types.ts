@@ -1,3 +1,5 @@
+import type { EngineProfileConfig } from "./options";
+
 export type AppInfo = {
   name: string;
   version: string;
@@ -67,9 +69,11 @@ export type AppConfig = {
     microsoft_api_key?: string | null;
     microsoft_region?: string | null;
     google_api_key?: string | null;
-    self_hosted_endpoint?: string | null;
-    self_hosted_secret?: string | null;
+    cloudflare_endpoint?: string | null;
+    cloudflare_secret?: string | null;
   };
+  /** Config-driven profiles (`[engines.<id>]`). */
+  engines?: Record<string, EngineProfileConfig>;
   ocr: {
     /** `system` | `tesseract` */
     engine: string;
@@ -95,9 +99,10 @@ export function emptyConfig(): AppConfig {
       microsoft_api_key: null,
       microsoft_region: null,
       google_api_key: null,
-      self_hosted_endpoint: null,
-      self_hosted_secret: null,
+      cloudflare_endpoint: null,
+      cloudflare_secret: null,
     },
+    engines: {},
     ocr: {
       engine: "system",
     },

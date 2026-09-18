@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { CapturePayload, TranslationPayload } from "../shared/types";
-import { ENGINES, TARGET_LANGS, normalizeLangCode } from "../shared/options";
+import type { AppConfig, CapturePayload, TranslationPayload } from "../shared/types";
+import { TARGET_LANGS, normalizeLangCode, resolveEngineLabel } from "../shared/options";
 import { EngineIcon } from "../shared/EngineIcon";
 import "./popup.css";
 
@@ -13,13 +13,17 @@ export function PopupApp() {
   );
   const [targetLang, setTargetLang] = useState("zh-CN");
   const [copyStatus, setCopyStatus] = useState("");
+  const [engineProfiles, setEngineProfiles] = useState<AppConfig["engines"]>(
+    {},
+  );
 
   useEffect(() => {
-    invoke<{ general: { target_lang: string } }>("get_config")
+    invoke<AppConfig>("get_config")
       .then((config) => {
         if (config.general?.target_lang) {
           setTargetLang(normalizeLangCode(config.general.target_lang) || "zh-CN");
         }
+        setEngineProfiles(config.engines ?? {});
       })
       .catch(console.error);
 
@@ -217,8 +221,10 @@ export function PopupApp() {
                 <span className="popup-chip popup-chip-engine">
                   <EngineIcon engine={translation.engine} size="sm" />
                   <span>
-                    {ENGINES.find((item) => item.value === translation.engine)
-                      ?.label ?? translation.engine}
+                    {resolveEngineLabel(
+                      translation.engine,
+                      engineProfiles,
+                    )}
                   </span>
                 </span>
               ) : null}

@@ -15,10 +15,43 @@ active = "microsoft"
 # active = "microsoft_web"  # unofficial Bing web (no key)
 # active = "google"         # Cloud Translation API v2
 # active = "google_web"     # unofficial gtx endpoint (no key)
-# Self-hosted (Cloudflare Workers / translate-api compatible):
-# active = "self_hosted"
-# self_hosted_endpoint = "https://your-worker.workers.dev/"
-# self_hosted_secret = "123456"
+# Cloudflare Workers (translate-api compatible):
+# active = "cloudflare"
+# cloudflare_endpoint = "https://your-worker.workers.dev/"
+# cloudflare_secret = "123456"
+#
+# Config-driven profile example (DeepL Free API) — see docs/adr/0001-config-driven-engines.md
+# active = "deepl"
+
+# [engines.deepl]
+# label = "DeepL"
+# method = "POST"
+# url = "https://api-free.deepl.com/v2/translate"
+# auth = "header"
+# auth_header = "Authorization"
+# auth_value = "DeepL-Auth-Key {{extra.api_key}}"
+# body_type = "form"
+# text_path = "translations.0.text"
+# error_path = "message"
+#
+# [engines.deepl.body]
+# text = "{{text}}"
+# target_lang = "{{target_lang}}"
+# source_lang = "{{source_lang}}"
+#
+# [engines.deepl.extra]
+# api_key = "your-deepl-auth-key"
+#
+# [engines.deepl.lang_map]
+# zh-CN = "ZH"
+# zh-TW = "ZH"
+# en = "EN"
+# ja = "JA"
+# ko = "KO"
+# fr = "FR"
+# de = "DE"
+# es = "ES"
+# auto = ""
 
 [ocr]
 engine = "system"

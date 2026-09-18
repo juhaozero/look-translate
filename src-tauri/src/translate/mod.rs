@@ -1,21 +1,23 @@
 //! Translator trait and engine implementations.
 
+mod cloudflare;
+mod config_driven;
 mod google;
 mod microsoft;
 mod microsoft_web;
-mod self_hosted;
 mod state;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use crate::config::AppConfig;
+use crate::config::{is_builtin_engine, AppConfig};
 use crate::lang::normalize_lang_code;
 
+pub use cloudflare::CloudflareTranslator;
+pub use config_driven::ConfigDrivenTranslator;
 pub use google::{GoogleCloudTranslator, GoogleWebTranslator};
 pub use microsoft::MicrosoftTranslator;
 pub use microsoft_web::MicrosoftWebTranslator;
-pub use self_hosted::SelfHostedTranslator;
 pub use state::TranslationState;
 
 #[derive(Debug, Clone)]
@@ -116,7 +118,7 @@ impl TranslationPayload {
 
 #[async_trait]
 pub trait Translator: Send + Sync {
-    fn id(&self) -> &'static str;
+    fn id(&self) -> &str;
     async fn translate(&self, req: &TranslationRequest) -> Result<TranslationResult, String>;
 }
 
@@ -137,7 +139,8 @@ pub async fn translate_with_config(
     req: TranslationRequest,
 ) -> Result<TranslationResult, String> {
     let client = build_http_client(config.general.follow_system_proxy)?;
-    match config.engine.active.as_str() {
+    let active = config.engine.active.trim();
+    match active {
         "microsoft" => {
             let translator = MicrosoftTranslator::from_config(config, client)?;
             translator.translate(&req).await
@@ -154,12 +157,16 @@ pub async fn translate_with_config(
             let translator = GoogleWebTranslator::new(client);
             translator.translate(&req).await
         }
-        "self_hosted" => {
-            let translator = SelfHostedTranslator::from_config(config, client)?;
+        "cloudflare" => {
+            let translator = CloudflareTranslator::from_config(config, client)?;
+            translator.translate(&req).await
+        }
+        other if !other.is_empty() && !is_builtin_engine(other) => {
+            let translator = ConfigDrivenTranslator::from_config(config, client)?;
             translator.translate(&req).await
         }
         other => Err(format!(
-            "未知翻译引擎 `{other}`（当前支持：microsoft / microsoft_web / google / google_web / self_hosted）"
+            "未知翻译引擎 `{other}`（内置：microsoft / microsoft_web / google / google_web / cloudflare；或配置 `[engines.<id>]`）"
         )),
     }
 }

@@ -15,7 +15,7 @@ import type {
   InstallRecommendedDictResult,
 } from "../shared/types";
 import { emptyConfig } from "../shared/types";
-import { ENGINES, OCR_ENGINES, SOURCE_LANGS, TARGET_LANGS, normalizeLangCode } from "../shared/options";
+import { OCR_ENGINES, SOURCE_LANGS, TARGET_LANGS, BUILTIN_ENGINE_IDS, buildEngineList, normalizeLangCode } from "../shared/options";
 import { EngineIcon, IconEdit, OcrEngineIcon } from "../shared/EngineIcon";
 import { HotkeyRecorder } from "./HotkeyRecorder";
 import {
@@ -77,6 +77,11 @@ export function SettingsApp() {
   const dirty = useMemo(
     () => serializeConfig(config) !== savedSnapshot && savedSnapshot.length > 0,
     [config, savedSnapshot],
+  );
+
+  const engineList = useMemo(
+    () => buildEngineList(config.engines),
+    [config.engines],
   );
 
   async function loadAll() {
@@ -422,7 +427,7 @@ export function SettingsApp() {
             <section className="service-list-shell" aria-label="翻译服务">
               <h2 className="service-section-title">翻译服务</h2>
               <ul className="service-list">
-                {ENGINES.map((engine) => {
+                {engineList.map((engine) => {
                   const active = config.engine.active === engine.value;
                   const expanded = editingEngine === engine.value;
                   return (
@@ -492,6 +497,13 @@ export function SettingsApp() {
                           )}
                         </div>
                       </div>
+                      {expanded && engine.kind === "profile" ? (
+                        <div className="service-card-editor">
+                          <p className="service-card-editor-hint">
+                            {engine.hint}
+                          </p>
+                        </div>
+                      ) : null}
                       {expanded && engine.value === "microsoft" ? (
                         <div className="service-card-editor">
                           <p className="service-card-editor-hint">
@@ -561,22 +573,22 @@ export function SettingsApp() {
                           </label>
                         </div>
                       ) : null}
-                      {expanded && engine.value === "self_hosted" ? (
+                      {expanded && engine.value === "cloudflare" ? (
                         <div className="service-card-editor">
                           <label className="service-field">
-                            <span>接口地址</span>
+                            <span>Worker 地址</span>
                             <input
                               type="url"
                               autoComplete="off"
                               className="settings-input"
                               placeholder="https://xxx.workers.dev/"
-                              value={config.engine.self_hosted_endpoint ?? ""}
+                              value={config.engine.cloudflare_endpoint ?? ""}
                               onChange={(event) =>
                                 setConfig({
                                   ...config,
                                   engine: {
                                     ...config.engine,
-                                    self_hosted_endpoint: event.target.value,
+                                    cloudflare_endpoint: event.target.value,
                                   },
                                 })
                               }
@@ -589,13 +601,13 @@ export function SettingsApp() {
                               autoComplete="off"
                               className="settings-input"
                               placeholder="与 Worker 中 SECRET_PASS 一致"
-                              value={config.engine.self_hosted_secret ?? ""}
+                              value={config.engine.cloudflare_secret ?? ""}
                               onChange={(event) =>
                                 setConfig({
                                   ...config,
                                   engine: {
                                     ...config.engine,
-                                    self_hosted_secret: event.target.value,
+                                    cloudflare_secret: event.target.value,
                                   },
                                 })
                               }
@@ -1041,11 +1053,12 @@ function normalizeConfig(config: AppConfig): AppConfig {
       microsoft_api_key: normalizeOptionalKey(config.engine.microsoft_api_key),
       microsoft_region: normalizeOptionalKey(config.engine.microsoft_region),
       google_api_key: normalizeOptionalKey(config.engine.google_api_key),
-      self_hosted_endpoint: normalizeOptionalKey(
-        config.engine.self_hosted_endpoint,
+      cloudflare_endpoint: normalizeOptionalKey(
+        config.engine.cloudflare_endpoint,
       ),
-      self_hosted_secret: normalizeOptionalKey(config.engine.self_hosted_secret),
+      cloudflare_secret: normalizeOptionalKey(config.engine.cloudflare_secret),
     },
+    engines: config.engines ?? {},
     ocr: {
       engine: ocrEngine,
     },
@@ -1074,13 +1087,26 @@ function validateConfig(config: AppConfig): string | null {
   ) {
     return "划词热键与 OCR 热键不能相同";
   }
-  if (config.engine.active === "self_hosted") {
-    const endpoint = (config.engine.self_hosted_endpoint ?? "").trim();
+  if (config.engine.active === "cloudflare") {
+    const endpoint = (config.engine.cloudflare_endpoint ?? "").trim();
     if (!endpoint) {
-      return "自建翻译需填写接口地址";
+      return "Cloudflare 翻译需填写 Worker 地址";
     }
     if (!/^https?:\/\//i.test(endpoint)) {
-      return "自建翻译地址须以 http:// 或 https:// 开头";
+      return "Cloudflare 翻译地址须以 http:// 或 https:// 开头";
+    }
+  }
+  const active = config.engine.active.trim();
+  if (active && !BUILTIN_ENGINE_IDS.has(active)) {
+    const profile = config.engines?.[active];
+    if (!profile) {
+      return `未找到自定义引擎 [engines.${active}]，请检查 config.toml`;
+    }
+    if (!(profile.url ?? "").trim()) {
+      return `自定义引擎 ${active} 缺少 url`;
+    }
+    if (!(profile.text_path ?? "").trim()) {
+      return `自定义引擎 ${active} 缺少 text_path`;
     }
   }
   return null;

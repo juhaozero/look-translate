@@ -1,14 +1,20 @@
 import type { EngineId } from "./options";
+import { BUILTIN_ENGINE_IDS } from "./options";
 import bingIcon from "../assets/brands/bing.png";
+import cloudflareIcon from "../assets/brands/cloudflare.png";
 import googleIcon from "../assets/brands/google.png";
-import microsoftIcon from "../assets/brands/microsoft.svg";
+import microsoftIcon from "../assets/brands/microsoft.png";
 
 type IconProps = {
   className?: string;
   title?: string;
 };
 
-function resolveBrandSrc(engine: string): string {
+function isBuiltinBrand(engine: string): boolean {
+  return BUILTIN_ENGINE_IDS.has(engine);
+}
+
+function resolveBrandSrc(engine: string): string | null {
   switch (engine) {
     case "microsoft":
       return microsoftIcon;
@@ -17,8 +23,10 @@ function resolveBrandSrc(engine: string): string {
     case "google":
     case "google_web":
       return googleIcon;
+    case "cloudflare":
+      return cloudflareIcon;
     default:
-      return microsoftIcon;
+      return null;
   }
 }
 
@@ -32,8 +40,8 @@ function resolveBrandLabel(engine: string): string {
       return "Google";
     case "google_web":
       return "Google 网页";
-    case "self_hosted":
-      return "自建翻译";
+    case "cloudflare":
+      return "Cloudflare";
     case "system":
       return "系统 OCR";
     case "tesseract":
@@ -41,6 +49,20 @@ function resolveBrandLabel(engine: string): string {
     default:
       return engine;
   }
+}
+
+function CustomEngineGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="4" fill="#475569" />
+      <path
+        d="M8 12h8M12 8v8"
+        stroke="#F8FAFC"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
 }
 
 /** Brand marks for engines; web variants share a unified 「网」badge. */
@@ -53,35 +75,10 @@ export function EngineIcon({
   className?: string;
   size?: "sm" | "md";
 }) {
-  if (engine === "self_hosted") {
-    return (
-      <span
-        className={
-          size === "sm"
-            ? `engine-icon engine-icon-sm${className ? ` ${className}` : ""}`
-            : `engine-icon${className ? ` ${className}` : ""}`
-        }
-        title="自建翻译"
-        aria-label="自建翻译"
-        role="img"
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="3" width="18" height="18" rx="4" fill="#C2410C" />
-          <path
-            d="M8 12h8M12 8v8"
-            stroke="#FFF7ED"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-          />
-          <circle cx="12" cy="12" r="5.5" stroke="#FFEDD5" strokeWidth="1.25" fill="none" />
-        </svg>
-      </span>
-    );
-  }
-
   const web = engine === "microsoft_web" || engine === "google_web";
   const src = resolveBrandSrc(engine);
   const label = resolveBrandLabel(engine);
+  const custom = !isBuiltinBrand(engine);
 
   return (
     <span
@@ -94,7 +91,11 @@ export function EngineIcon({
       aria-label={label}
       role="img"
     >
-      <img src={src} alt="" draggable={false} />
+      {custom || !src ? (
+        <CustomEngineGlyph />
+      ) : (
+        <img src={src} alt="" draggable={false} />
+      )}
       {web ? <span className="engine-icon-web" aria-hidden="true">网</span> : null}
     </span>
   );

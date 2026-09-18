@@ -44,13 +44,102 @@ export const ENGINES = [
     configurable: false,
   },
   {
-    value: "self_hosted",
-    label: "自建翻译",
-    subtitle: "Cloudflare / 自定义 API",
-    hint: "兼容 translate-api（Workers + m2m100）：填写你的接口地址与密钥。源语言为 auto 时按 en 发送。",
+    value: "cloudflare",
+    label: "Cloudflare 翻译",
+    subtitle: "Workers / translate-api",
+    hint: "兼容 translate-api（Cloudflare Workers + m2m100）：填写 Worker 地址与密钥。源语言为 auto 时按 en 发送。",
     configurable: true,
   },
 ] as const;
+
+export const BUILTIN_ENGINE_IDS: ReadonlySet<string> = new Set(
+  ENGINES.map((e) => e.value),
+);
+
+export type EngineListItem = {
+  value: string;
+  label: string;
+  subtitle: string;
+  hint: string;
+  configurable: boolean;
+  /** builtin | profile */
+  kind: "builtin" | "profile";
+};
+
+export type EngineProfileConfig = {
+  label?: string | null;
+  method?: string;
+  url: string;
+  auth?: string;
+  auth_header?: string | null;
+  auth_value?: string | null;
+  token?: string | null;
+  username?: string | null;
+  password?: string | null;
+  auth_query_key?: string | null;
+  auth_query_value?: string | null;
+  headers?: Record<string, string>;
+  query?: Record<string, string>;
+  body_type?: string;
+  body?: Record<string, string>;
+  extra?: Record<string, string>;
+  lang_map?: Record<string, string>;
+  text_path: string;
+  error_path?: string | null;
+};
+
+/** Merge builtin engines with Config-driven profiles from config (builtin ids win). */
+export function buildEngineList(
+  engines: Record<string, EngineProfileConfig> | null | undefined,
+): EngineListItem[] {
+  const list: EngineListItem[] = ENGINES.map((e) => ({
+    value: e.value,
+    label: e.label,
+    subtitle: e.subtitle,
+    hint: e.hint,
+    configurable: e.configurable,
+    kind: "builtin",
+  }));
+
+  if (!engines) {
+    return list;
+  }
+
+  const profileIds = Object.keys(engines).sort((a, b) => a.localeCompare(b));
+  for (const id of profileIds) {
+    if (BUILTIN_ENGINE_IDS.has(id)) {
+      continue;
+    }
+    const profile = engines[id];
+    const label =
+      (profile.label ?? "").trim() || id;
+    list.push({
+      value: id,
+      label,
+      subtitle: "自定义（config.toml）",
+      hint: "请在 data/config.toml 的 [engines." + id + "] 中编辑；此处仅可切换启用。",
+      configurable: true,
+      kind: "profile",
+    });
+  }
+  return list;
+}
+
+export function resolveEngineLabel(
+  engineId: string,
+  engines?: Record<string, EngineProfileConfig> | null,
+): string {
+  const builtin = ENGINES.find((item) => item.value === engineId);
+  if (builtin) {
+    return builtin.label;
+  }
+  const profile = engines?.[engineId];
+  const label = profile?.label?.trim();
+  if (label) {
+    return label;
+  }
+  return engineId;
+}
 
 export const OCR_ENGINES = [
   {

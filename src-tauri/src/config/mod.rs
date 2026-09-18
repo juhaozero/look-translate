@@ -1,5 +1,6 @@
 //! Portable config under install-dir `data/`.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -8,6 +9,21 @@ use serde::{Deserialize, Serialize};
 
 pub const CONFIG_FILE_NAME: &str = "config.toml";
 pub const DATA_DIR_NAME: &str = "data";
+
+/// Builtin engine ids — always win over same-named Engine Profiles.
+pub const BUILTIN_ENGINE_IDS: &[&str] = &[
+    "microsoft",
+    "microsoft_web",
+    "google",
+    "google_web",
+    "cloudflare",
+];
+
+pub fn is_builtin_engine(id: &str) -> bool {
+    BUILTIN_ENGINE_IDS
+        .iter()
+        .any(|builtin| builtin.eq_ignore_ascii_case(id.trim()))
+}
 
 #[derive(Debug, Clone)]
 pub struct ConfigPaths {
@@ -35,6 +51,9 @@ impl ConfigState {
 pub struct AppConfig {
     pub general: GeneralConfig,
     pub engine: EngineConfig,
+    /// Named Config-driven Engine profiles (`[engines.<id>]`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub engines: BTreeMap<String, EngineProfile>,
     pub ocr: OcrConfig,
     pub dictionary: DictionaryConfig,
 }
@@ -44,6 +63,7 @@ impl Default for AppConfig {
         Self {
             general: GeneralConfig::default(),
             engine: EngineConfig::default(),
+            engines: BTreeMap::new(),
             ocr: OcrConfig::default(),
             dictionary: DictionaryConfig::default(),
         }
@@ -87,12 +107,20 @@ pub struct EngineConfig {
     /// Google Cloud Translation API v2 key (stored locally only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub google_api_key: Option<String>,
-    /// Self-hosted translate-api compatible endpoint (Cloudflare Worker URL, etc.).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub self_hosted_endpoint: Option<String>,
-    /// Optional access secret for the self-hosted endpoint.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub self_hosted_secret: Option<String>,
+    /// Cloudflare Workers / translate-api compatible endpoint.
+    #[serde(
+        default,
+        alias = "self_hosted_endpoint",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cloudflare_endpoint: Option<String>,
+    /// Optional access secret for the Cloudflare Worker (`SECRET_PASS`).
+    #[serde(
+        default,
+        alias = "self_hosted_secret",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub cloudflare_secret: Option<String>,
 }
 
 impl Default for EngineConfig {
@@ -102,9 +130,91 @@ impl Default for EngineConfig {
             microsoft_api_key: None,
             microsoft_region: None,
             google_api_key: None,
-            self_hosted_endpoint: None,
-            self_hosted_secret: None,
+            cloudflare_endpoint: None,
+            cloudflare_secret: None,
         }
+    }
+}
+
+/// One Config-driven Engine profile (`[engines.<id>]`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct EngineProfile {
+    /// Display name in settings; falls back to profile id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    /// HTTP method: `GET` | `POST` (default POST).
+    pub method: String,
+    pub url: String,
+    /// `none` | `header` | `query` | `bearer` | `basic`
+    pub auth: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_header: Option<String>,
+    /// Header value template (e.g. `DeepL-Auth-Key {{extra.api_key}}`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_query_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_query_value: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub query: BTreeMap<String, String>,
+    /// `json` | `form` | `none`
+    pub body_type: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub body: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub extra: BTreeMap<String, String>,
+    /// Map app lang codes → vendor codes (`zh-CN` → `ZH`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub lang_map: BTreeMap<String, String>,
+    /// Dot path into JSON for translated text (`translations.0.text`).
+    pub text_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_path: Option<String>,
+}
+
+impl Default for EngineProfile {
+    fn default() -> Self {
+        Self {
+            label: None,
+            method: "POST".into(),
+            url: String::new(),
+            auth: "none".into(),
+            auth_header: None,
+            auth_value: None,
+            token: None,
+            username: None,
+            password: None,
+            auth_query_key: None,
+            auth_query_value: None,
+            headers: BTreeMap::new(),
+            query: BTreeMap::new(),
+            body_type: "json".into(),
+            body: BTreeMap::new(),
+            extra: BTreeMap::new(),
+            lang_map: BTreeMap::new(),
+            text_path: String::new(),
+            error_path: None,
+        }
+    }
+}
+
+impl EngineProfile {
+    pub fn display_label<'a>(&'a self, id: &'a str) -> &'a str {
+        self.label
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .unwrap_or(id)
     }
 }
 
@@ -225,6 +335,10 @@ fn normalize_config_langs(config: &mut AppConfig) {
         "tesseract" => "tesseract".into(),
         _ => "system".into(),
     };
+    // Legacy engine id from earlier builds.
+    if config.engine.active.trim().eq_ignore_ascii_case("self_hosted") {
+        config.engine.active = "cloudflare".into();
+    }
 }
 
 #[cfg(test)]
@@ -290,5 +404,65 @@ source_lang = "zh-Hant"
         let parsed = parse_config(raw).unwrap();
         assert_eq!(parsed.general.target_lang, "zh-CN");
         assert_eq!(parsed.general.source_lang, "zh-TW");
+    }
+
+    #[test]
+    fn legacy_self_hosted_migrates_to_cloudflare() {
+        let raw = r#"
+[engine]
+active = "self_hosted"
+self_hosted_endpoint = "https://example.workers.dev/"
+self_hosted_secret = "s3cret"
+"#;
+        let parsed = parse_config(raw).unwrap();
+        assert_eq!(parsed.engine.active, "cloudflare");
+        assert_eq!(
+            parsed.engine.cloudflare_endpoint.as_deref(),
+            Some("https://example.workers.dev/")
+        );
+        assert_eq!(parsed.engine.cloudflare_secret.as_deref(), Some("s3cret"));
+    }
+
+    #[test]
+    fn parses_named_engine_profile() {
+        let raw = r#"
+[engine]
+active = "deepl"
+
+[engines.deepl]
+label = "DeepL"
+method = "POST"
+url = "https://api-free.deepl.com/v2/translate"
+auth = "header"
+auth_header = "Authorization"
+auth_value = "DeepL-Auth-Key {{extra.api_key}}"
+body_type = "form"
+text_path = "translations.0.text"
+error_path = "message"
+
+[engines.deepl.body]
+text = "{{text}}"
+target_lang = "{{target_lang}}"
+source_lang = "{{source_lang}}"
+
+[engines.deepl.extra]
+api_key = "secret"
+
+[engines.deepl.lang_map]
+zh-CN = "ZH"
+en = "EN"
+auto = ""
+"#;
+        let parsed = parse_config(raw).unwrap();
+        assert_eq!(parsed.engine.active, "deepl");
+        let profile = parsed.engines.get("deepl").expect("deepl profile");
+        assert_eq!(profile.display_label("deepl"), "DeepL");
+        assert_eq!(profile.auth, "header");
+        assert_eq!(profile.body_type, "form");
+        assert_eq!(profile.body.get("text").map(String::as_str), Some("{{text}}"));
+        assert_eq!(profile.extra.get("api_key").map(String::as_str), Some("secret"));
+        assert_eq!(profile.lang_map.get("zh-CN").map(String::as_str), Some("ZH"));
+        assert!(is_builtin_engine("microsoft"));
+        assert!(!is_builtin_engine("deepl"));
     }
 }
