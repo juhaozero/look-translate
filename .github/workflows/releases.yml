@@ -103,7 +103,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: Look Translate ${{ github.ref_name }}
           releaseBody: ${{ needs.changelog.outputs.changelog }}
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: --bundles nsis,msi
 
