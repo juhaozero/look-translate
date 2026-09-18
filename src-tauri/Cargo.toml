@@ -1,6 +1,6 @@
 [package]
 name = "look-translate"
-version = "0.0.1"
+version = "0.0.2"
 description = "Windows 划词翻译小工具"
 authors = ["you"]
 edition = "2021"
