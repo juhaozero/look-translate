@@ -105,6 +105,8 @@ jobs:
           releaseBody: ${{ needs.changelog.outputs.changelog }}
           releaseDraft: false
           prerelease: false
+          # Force npm: tauri-action otherwise picks pnpm when pnpm-lock.yaml exists
+          tauriScript: npm run tauri
           args: --bundles nsis,msi
 
   build-check:
