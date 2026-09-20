@@ -1,103 +1,142 @@
 /**
- * Look Translate / translate-api 兼容
- * GET ?text=&source_language=&target_language=&secret=
- * Response: { code, msg, text }
+ * Look Translate — Cloudflare Worker (m2m100)
  *
- * Dashboard Variables 配置 SECRET_PASS，并绑定 Workers AI
+ * 部署前设置密钥（不要写进源码）：
+ *   npx wrangler secret put SECRET_PASS
+ *
+ * 调用协议：
+ *   POST /
+ *   Authorization: Bearer <SECRET_PASS>
+ *   Content-Type: application/json
+ *   { "text": "...", "source_language": "en", "target_language": "zh" }
+ *
+ * 也可用请求头 X-Api-Key: <SECRET_PASS> 代替 Bearer。
  */
-const LANG = {
-    zh: "简体中文汉字",
-    en: "English",
-    ja: "日本語",
-    ko: "한국어",
-    fr: "Français",
-    de: "Deutsch",
-    es: "Español",
-  };
-  /** 常见套话前缀，整段匹配后剥掉 */
-  const CHATTER = [
-    /^自动检测语言后[，,].*?(?:翻译[：:]\s*)?/u,
-    /^(?:好的|当然|没问题)[，,！!]?\s*/u,
-    /^(?:以下是|这是|翻译结果|译文)[：:]\s*/u,
-    /^(?:Here is|Here's|Sure[,!]?\s+here(?:'s| is))\s+(?:the\s+)?(?:translation|result)[:：]?\s*/i,
-    /^Translation[:：]\s*/i,
-  ];
-  export default {
-    async fetch(request, env) {
-      const url = new URL(request.url);
-      const text = (url.searchParams.get("text") || "").trim();
-      const target = normalize(url.searchParams.get("target_language") || "zh");
-      const secret = url.searchParams.get("secret");
-      if (secret !== SECRET_PASS) {
-        return Response.json({ code: 1, msg: "无权访问" }, { status: 401 });
-      }
-      if (!text) {
-        return Response.json({ code: 1, msg: "缺少 text 参数" }, { status: 400 });
-      }
-      const to = LANG[target] || target;
-      try {
-        // 短 prompt + few-shot，比长规则更不容易跑偏
-        const response = await env.AI.run("@cf/meta/llama-3.2-3b-instruct", {
-          messages: [
-            {
-              role: "system",
-              content:
-                `Translate to ${to}. Reply with ONLY the translation. No preamble. Chinese → 汉字 not pinyin.`,
-            },
-            { role: "user", content: "hello" },
-            { role: "assistant", content: target === "zh" ? "你好" : "hello" },
-            { role: "user", content: text },
-          ],
-          max_tokens: 512,
+export default {
+  async fetch(request, env) {
+    if (request.method !== "POST") {
+      return Response.json({ code: 1, msg: "仅支持 POST" }, { status: 405 });
+    }
+
+    const expected = String(env.SECRET_PASS ?? "").trim();
+    if (!expected) {
+      return Response.json(
+        { code: 1, msg: "未配置 SECRET_PASS（请用 wrangler secret put）" },
+        { status: 503 },
+      );
+    }
+
+    const secret = extractSecret(request);
+    if (!secret || secret !== expected) {
+      return Response.json({ code: 1, msg: "无权访问" }, { status: 401 });
+    }
+
+    let text;
+    let sourceRaw = "en";
+    let targetRaw = "zh";
+
+    try {
+      const parsed = await readPostBody(request);
+      text = parsed.text;
+      sourceRaw = parsed.source_language || "en";
+      targetRaw = parsed.target_language || "zh";
+    } catch (error) {
+      return Response.json(
+        { code: 1, msg: "请求体无效: " + (error?.message || String(error)) },
+        { status: 400 },
+      );
+    }
+
+    if (!text || !String(text).trim()) {
+      return Response.json({ code: 1, msg: "缺少 text 参数" }, { status: 400 });
+    }
+
+    const source_lang = normalizeLang(sourceRaw);
+    const target_lang = normalizeLang(targetRaw);
+
+    try {
+      const response = await env.AI.run("@cf/meta/m2m100-1.2b", {
+        text: String(text).trim(),
+        source_lang,
+        target_lang,
+      });
+
+      const translated = String(response?.translated_text ?? "").trim();
+      if (!translated) {
+        return Response.json({
+          code: 2,
+          msg: "翻译模型未返回有效结果",
+          text: "",
         });
-        let out = String(
-          response?.response ||
-            response?.choices?.[0]?.message?.content ||
-            "",
-        ).trim();
-        out = stripChat(out);
-        if (!out) {
-          return Response.json({
-            code: 2,
-            msg: "翻译模型未返回有效结果",
-            text: "",
-          });
-        }
-        return Response.json({ code: 0, msg: "ok", text: out });
-      } catch (e) {
-        return Response.json(
-          { code: 3, msg: "服务器内部错误: " + (e?.message || String(e)) },
-          { status: 500 },
-        );
       }
-    },
+      if (translated.toUpperCase().startsWith("ERROR")) {
+        return Response.json({ code: 2, msg: "ok", text: translated });
+      }
+
+      return Response.json({ code: 0, msg: "ok", text: translated });
+    } catch (error) {
+      console.error(error);
+      return Response.json(
+        { code: 3, msg: "服务器内部错误: " + (error?.message || String(error)) },
+        { status: 500 },
+      );
+    }
+  },
+};
+
+/** 仅接受 Authorization: Bearer 或 X-Api-Key。 */
+function extractSecret(request) {
+  const auth = request.headers.get("Authorization") || "";
+  const bearer = auth.match(/^Bearer\s+(.+)$/i);
+  if (bearer) {
+    return bearer[1].trim();
+  }
+
+  const apiKey =
+    request.headers.get("X-Api-Key") || request.headers.get("x-api-key");
+  if (apiKey) {
+    return apiKey.trim();
+  }
+
+  return "";
+}
+
+async function readPostBody(request) {
+  const contentType = (request.headers.get("Content-Type") || "").toLowerCase();
+  if (contentType.includes("application/json")) {
+    const body = await request.json();
+    return {
+      text: body?.text,
+      source_language: body?.source_language ?? body?.sourceLanguage,
+      target_language: body?.target_language ?? body?.targetLanguage,
+    };
+  }
+
+  if (
+    contentType.includes("application/x-www-form-urlencoded") ||
+    contentType.includes("multipart/form-data")
+  ) {
+    const form = await request.formData();
+    return {
+      text: form.get("text"),
+      source_language: form.get("source_language") || form.get("sourceLanguage"),
+      target_language: form.get("target_language") || form.get("targetLanguage"),
+    };
+  }
+
+  const body = await request.json();
+  return {
+    text: body?.text,
+    source_language: body?.source_language ?? body?.sourceLanguage,
+    target_language: body?.target_language ?? body?.targetLanguage,
   };
-  function normalize(raw) {
-    const s = String(raw).trim().toLowerCase();
-    if (s.startsWith("zh")) return "zh";
-    return s.slice(0, 2);
-  }
-  function stripChat(s) {
-    let t = s.trim();
-    // 去掉包裹引号
-    if (
-      (t.startsWith('"') && t.endsWith('"')) ||
-      (t.startsWith("'") && t.endsWith("'")) ||
-      (t.startsWith("「") && t.endsWith("」"))
-    ) {
-      t = t.slice(1, -1).trim();
-    }
-    for (const re of CHATTER) {
-      t = t.replace(re, "").trim();
-    }
-    // 多段时：若第一段是套话、后面还有内容，取最后一段非空
-    const parts = t.split(/\n+/).map((p) => p.trim()).filter(Boolean);
-    if (parts.length > 1) {
-      const last = parts[parts.length - 1];
-      const firstIsMeta =
-        /检测|翻译[：:]|以下是|Here is/i.test(parts[0]) &&
-        !/检测|翻译[：:]|以下是|Here is/i.test(last);
-      if (firstIsMeta) t = last;
-    }
-    return t.trim();
-  }
+}
+
+function normalizeLang(raw) {
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (!s) return "en";
+  if (s.startsWith("zh")) return "zh";
+  return s.slice(0, 2);
+}

@@ -86,10 +86,11 @@ hotkey_ocr = "Ctrl+Shift+S"
 actives = ["microsoft_web", "google_web"]
 active = "microsoft_web"
 
-# Cloudflare Workers (translate-api compatible):
+# Cloudflare Workers (repo work.js):
 # actives = ["cloudflare"]
 # cloudflare_endpoint = "https://your-worker.workers.dev/"
-# cloudflare_secret = "your-secret"
+# cloudflare_secret = "your-secret"   # must match: wrangler secret put SECRET_PASS
+# Client uses POST JSON + Authorization: Bearer <secret> (do not hardcode the secret in Worker source)
 ```
 
 Custom providers (e.g. DeepL) can be added via config-driven `[engines.<id>]` profiles. See [`docs/engine-profiles.md`](docs/engine-profiles.md).

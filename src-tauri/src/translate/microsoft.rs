@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::AppConfig;
 use crate::lang::{from_microsoft_lang, to_microsoft_lang};
 
-use super::{TranslationRequest, TranslationResult, Translator};
+use super::{credentials::BuiltinCredentials, TranslationRequest, TranslationResult, Translator};
 
 const ENDPOINT: &str = "https://api.cognitive.microsofttranslator.com/translate";
 const API_VERSION: &str = "3.0";
@@ -19,27 +19,21 @@ pub struct MicrosoftTranslator {
 }
 
 impl MicrosoftTranslator {
-    pub fn from_config(config: &AppConfig, client: Client) -> Result<Self, String> {
-        let api_key = config
-            .engine
+    pub fn from_credentials(creds: &BuiltinCredentials, client: Client) -> Result<Self, String> {
+        let api_key = creds
             .microsoft_api_key
-            .as_ref()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
+            .clone()
             .ok_or_else(|| "未配置 Microsoft API Key，请在设置中填写后重试".to_string())?;
-
-        let region = config
-            .engine
-            .microsoft_region
-            .as_ref()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty());
 
         Ok(Self {
             client,
             api_key,
-            region,
+            region: creds.microsoft_region.clone(),
         })
+    }
+
+    pub fn from_config(config: &AppConfig, client: Client) -> Result<Self, String> {
+        Self::from_credentials(&BuiltinCredentials::from_engine_config(&config.engine), client)
     }
 }
 

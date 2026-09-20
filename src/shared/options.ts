@@ -46,11 +46,12 @@ export const ENGINES = [
     value: "cloudflare",
     label: "Cloudflare 翻译",
     subtitle: "Workers / translate-api",
-    hint: "兼容 translate-api（Cloudflare Workers + m2m100）：填写 Worker 地址与密钥。源语言为 auto 时按正文脚本猜测（中/日/韩/英）；简繁均映射为 zh。可与其他引擎并行。",
+        hint: "兼容本仓库 work.js Worker：POST JSON + Authorization Bearer；密钥用 wrangler secret put SECRET_PASS，勿写进源码。源语言为 auto 时按正文脚本猜测（中/日/韩/英）；简繁均映射为 zh。",
     configurable: true,
   },
 ] as const;
 
+/** Prefer `list_engines` from Rust; this set is a local fallback / type helper. */
 export const BUILTIN_ENGINE_IDS: ReadonlySet<string> = new Set(
   ENGINES.map((e) => e.value),
 );
@@ -87,7 +88,28 @@ export type EngineProfileConfig = {
   error_path?: string | null;
 };
 
-/** Merge builtin engines with Config-driven profiles from config (builtin ids win). */
+/** Map Rust `list_engines` catalog into settings list items. */
+export function catalogToEngineList(
+  catalog: ReadonlyArray<{
+    id: string;
+    label: string;
+    subtitle: string;
+    hint: string;
+    configurable: boolean;
+    kind: string;
+  }>,
+): EngineListItem[] {
+  return catalog.map((item) => ({
+    value: item.id,
+    label: item.label,
+    subtitle: item.subtitle,
+    hint: item.hint,
+    configurable: item.configurable,
+    kind: item.kind === "profile" ? "profile" : "builtin",
+  }));
+}
+
+/** Merge builtin engines with Config-driven profiles (local fallback if catalog unavailable). */
 export function buildEngineList(
   engines: Record<string, EngineProfileConfig> | null | undefined,
 ): EngineListItem[] {
@@ -110,13 +132,15 @@ export function buildEngineList(
       continue;
     }
     const profile = engines[id];
-    const label =
-      (profile.label ?? "").trim() || id;
+    const label = (profile.label ?? "").trim() || id;
     list.push({
       value: id,
       label,
       subtitle: "自定义（config.toml）",
-      hint: "请在 data/config.toml 的 [engines." + id + "] 中编辑；此处仅可切换启用。",
+      hint:
+        "请在 data/config.toml 的 [engines." +
+        id +
+        "] 中编辑；此处仅可切换启用。",
       configurable: true,
       kind: "profile",
     });

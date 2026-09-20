@@ -1,20 +1,23 @@
-//! Cloudflare Workers translation API (translate-api compatible).
+//! Cloudflare Workers translation API (Look Translate Worker / translate-api style).
 //!
-//! Protocol (GET query):
-//!   text, source_language, target_language, secret
+//! Preferred protocol (POST JSON + Bearer):
+//!   POST {endpoint}
+//!   Authorization: Bearer <secret>
+//!   Content-Type: application/json
+//!   { "text", "source_language", "target_language" }
+//!
 //! Response JSON:
 //!   { "code": 0, "msg": "ok", "text": "..." }
-//!
-//! See https://github.com/jianchang512/translate-api
 
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::Deserialize;
+use serde_json::json;
 
 use crate::config::AppConfig;
 use crate::lang::normalize_lang_code;
 
-use super::{TranslationRequest, TranslationResult, Translator};
+use super::{credentials::BuiltinCredentials, TranslationRequest, TranslationResult, Translator};
 
 pub struct CloudflareTranslator {
     client: Client,
@@ -23,33 +26,25 @@ pub struct CloudflareTranslator {
 }
 
 impl CloudflareTranslator {
-    pub fn from_config(config: &AppConfig, client: Client) -> Result<Self, String> {
-        let endpoint = config
-            .engine
+    pub fn from_credentials(creds: &BuiltinCredentials, client: Client) -> Result<Self, String> {
+        let endpoint = creds
             .cloudflare_endpoint
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .ok_or_else(|| "Cloudflare 翻译未配置 Worker 地址（endpoint）".to_string())?
-            .to_string();
+            .clone()
+            .ok_or_else(|| "Cloudflare 翻译未配置 Worker 地址（endpoint）".to_string())?;
 
         if !(endpoint.starts_with("https://") || endpoint.starts_with("http://")) {
             return Err("Cloudflare 翻译地址须以 http:// 或 https:// 开头".into());
         }
 
-        let secret = config
-            .engine
-            .cloudflare_secret
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(str::to_string);
-
         Ok(Self {
             client,
             endpoint,
-            secret,
+            secret: creds.cloudflare_secret.clone(),
         })
+    }
+
+    pub fn from_config(config: &AppConfig, client: Client) -> Result<Self, String> {
+        Self::from_credentials(&BuiltinCredentials::from_engine_config(&config.engine), client)
     }
 }
 
@@ -70,21 +65,26 @@ impl Translator for CloudflareTranslator {
         let target = to_m2m_lang(&req.target_lang)?;
         let (source, detected) = resolve_m2m_source(&req.source_lang, req.text.trim());
 
-        let mut url = reqwest::Url::parse(&self.endpoint)
+        let url = reqwest::Url::parse(&self.endpoint)
             .map_err(|e| format!("Cloudflare 翻译地址无效: {e}"))?;
-        {
-            let mut pairs = url.query_pairs_mut();
-            pairs.append_pair("text", req.text.trim());
-            pairs.append_pair("source_language", &source);
-            pairs.append_pair("target_language", &target);
-            if let Some(secret) = &self.secret {
-                pairs.append_pair("secret", secret);
-            }
+
+        let body = json!({
+            "text": req.text.trim(),
+            "source_language": source,
+            "target_language": target,
+        });
+
+        let mut request = self
+            .client
+            .post(url)
+            .header("Content-Type", "application/json")
+            .json(&body);
+
+        if let Some(secret) = &self.secret {
+            request = request.header("Authorization", format!("Bearer {secret}"));
         }
 
-        let response = self
-            .client
-            .get(url)
+        let response = request
             .send()
             .await
             .map_err(|e| format!("Cloudflare 翻译请求失败: {e}"))?;
