@@ -891,13 +891,13 @@ export function SettingsApp() {
                   >
                     重新加载配置
                   </button>
-                  <button
+                  {/* <button
                     type="button"
                     className="settings-btn settings-btn-ghost"
                     onClick={() => void openEngineProfilesDoc()}
                   >
                     填写说明
-                  </button>
+                  </button> */}
                   <button
                     type="button"
                     className="settings-btn"

@@ -8,10 +8,10 @@
 
 [功能](#功能) · [安装](#安装) · [使用](#使用) · [配置](#配置) · [开发](#开发) · [打包](#打包)
 
-Platform
-License
-Version
-Tauri
+![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Version](https://img.shields.io/badge/version-0.0.2-blue)
+![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)
 
 ## 功能
 
