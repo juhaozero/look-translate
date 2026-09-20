@@ -17,6 +17,7 @@ use tauri_plugin_autostart::ManagerExt;
 pub struct AppPaths {
     pub data_dir: String,
     pub config_path: String,
+    pub log_dir: String,
     pub dicts_dir: String,
     pub recommended_dict_path: String,
     pub recommended_dict_relative: String,
@@ -26,9 +27,11 @@ pub struct AppPaths {
 #[tauri::command]
 pub fn get_app_paths(state: State<'_, ConfigState>) -> AppPaths {
     let recommended = recommended_mdx_path(&state.paths.data_dir);
+    let log_dir = state.paths.data_dir.join("logs");
     AppPaths {
         data_dir: state.paths.data_dir.to_string_lossy().into_owned(),
         config_path: state.paths.config_path.to_string_lossy().into_owned(),
+        log_dir: log_dir.to_string_lossy().into_owned(),
         dicts_dir: state
             .paths
             .data_dir
@@ -93,6 +96,22 @@ pub fn open_config_file(state: State<'_, ConfigState>) -> Result<(), String> {
         save_to_path(path, &guard)?;
     }
     open_path_with_default_app(path)
+}
+
+/// Open (and create if needed) the portable logs folder under `data/logs`.
+#[tauri::command]
+pub fn open_log_dir(state: State<'_, ConfigState>) -> Result<(), String> {
+    let log_dir = state.paths.data_dir.join("logs");
+    std::fs::create_dir_all(&log_dir)
+        .map_err(|e| format!("创建日志目录失败: {e}"))?;
+    open_path_with_default_app(&log_dir)
+}
+
+/// Open the portable data directory in the file manager.
+#[tauri::command]
+pub fn open_data_dir(state: State<'_, ConfigState>) -> Result<(), String> {
+    crate::config::ensure_data_dir(&state.paths)?;
+    open_path_with_default_app(&state.paths.data_dir)
 }
 
 /// Open `docs/engine-profiles.md` when present next to the install / repo.
@@ -190,16 +209,67 @@ pub fn sync_launch_at_startup(app: &AppHandle, enabled: bool) -> Result<(), Stri
     Ok(())
 }
 
+/// Open an http(s) URL with the OS default browser.
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    let trimmed = url.trim();
+    if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
+        return Err("仅支持 http/https 链接".into());
+    }
+    open_url_with_default_browser(trimmed)
+}
+
+fn open_url_with_default_browser(url: &str) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        // `cmd /C start "" <url>` opens the system default browser.
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| format!("打开浏览器失败: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| format!("打开浏览器失败: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(url)
+            .spawn()
+            .map_err(|e| format!("打开浏览器失败: {e}"))?;
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err("当前平台不支持打开链接".into())
+}
+
 fn open_path_with_default_app(path: &std::path::Path) -> Result<(), String> {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &path.to_string_lossy()])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| format!("打开文件失败: {e}"))?;
+        if path.is_dir() {
+            std::process::Command::new("explorer")
+                .arg(path)
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+                .map_err(|e| format!("打开目录失败: {e}"))?;
+        } else {
+            std::process::Command::new("cmd")
+                .args(["/C", "start", "", &path.to_string_lossy()])
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+                .map_err(|e| format!("打开文件失败: {e}"))?;
+        }
         return Ok(());
     }
     #[cfg(target_os = "macos")]

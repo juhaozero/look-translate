@@ -321,6 +321,40 @@ export function SettingsApp() {
     }
   }
 
+  async function openLogDir() {
+    setStatus(null);
+    try {
+      await invoke("open_log_dir");
+      showTransientOk("已打开日志目录");
+      const appPaths = await invoke<AppPaths>("get_app_paths");
+      setPaths(appPaths);
+    } catch (error) {
+      console.error(error);
+      setStatus({ tone: "err", text: String(error) });
+    }
+  }
+
+  async function openDataDir() {
+    setStatus(null);
+    try {
+      await invoke("open_data_dir");
+      showTransientOk("已打开数据目录");
+    } catch (error) {
+      console.error(error);
+      setStatus({ tone: "err", text: String(error) });
+    }
+  }
+
+  async function openExternalUrl(url: string) {
+    setStatus(null);
+    try {
+      await invoke("open_url", { url });
+    } catch (error) {
+      console.error(error);
+      setStatus({ tone: "err", text: String(error) });
+    }
+  }
+
   async function reloadConfigFromDisk() {
     if (dirty || saving) {
       const ok = window.confirm(
@@ -1148,33 +1182,93 @@ export function SettingsApp() {
 
           {nav === "about" ? (
             <section className="settings-about">
-              <IconApp className="settings-about-icon" />
-              <h2>{info?.name ?? "Look Translate"}</h2>
+              <h2 className="settings-about-name">
+                {info?.name ?? "Look Translate"}
+              </h2>
               <p className="settings-about-ver">
-                v{info?.version ?? "…"}
+                {info?.version ?? "…"}
               </p>
               <p className="settings-about-desc">
                 {info?.description ?? "Windows 划词翻译小工具"}
               </p>
-              <div className="settings-about-card">
-                <div className="settings-about-row">
-                  <span>data</span>
-                  <code>{paths?.dataDir ?? "…"}</code>
+
+              <div className="settings-about-links" role="navigation" aria-label="项目链接">
+                <button
+                  type="button"
+                  className="settings-about-link"
+                  onClick={() =>
+                    void openExternalUrl(
+                      "https://github.com/juhaozero/look-translate",
+                    )
+                  }
+                >
+                  GitHub
+                </button>
+                <button
+                  type="button"
+                  className="settings-about-link"
+                  onClick={() =>
+                    void openExternalUrl(
+                      "https://github.com/juhaozero/look-translate/issues",
+                    )
+                  }
+                >
+                  问题反馈
+                </button>
+              </div>
+
+              <div className="settings-about-links" role="navigation" aria-label="本地资源">
+                <button
+                  type="button"
+                  className="settings-about-link"
+                  onClick={() => void openLogDir()}
+                >
+                  查看日志
+                </button>
+                <button
+                  type="button"
+                  className="settings-about-link"
+                  onClick={() => void openConfigFile()}
+                >
+                  查看配置文件
+                </button>
+                <button
+                  type="button"
+                  className="settings-about-link"
+                  onClick={() => void openDataDir()}
+                >
+                  打开数据目录
+                </button>
+              </div>
+
+              <div className="settings-about-paths">
+                <div className="settings-about-path">
+                  <span>日志目录</span>
+                  <code>{paths?.logDir ?? "…"}</code>
                 </div>
-                <div className="settings-about-row">
-                  <span>config</span>
+                <div className="settings-about-path">
+                  <span>配置文件</span>
                   <code>{paths?.configPath ?? "…"}</code>
                 </div>
+                <div className="settings-about-path">
+                  <span>数据目录</span>
+                  <code>{paths?.dataDir ?? "…"}</code>
+                </div>
               </div>
+
               <p className="settings-about-note">
                 推荐离线词库来自{" "}
-                <a
-                  href="https://github.com/skywind3000/ECDICT"
-                  target="_blank"
-                  rel="noreferrer"
+                <button
+                  type="button"
+                  className="settings-about-inline-link"
+                  onClick={() =>
+                    void openExternalUrl(
+                      "https://github.com/skywind3000/ECDICT",
+                    )
+                  }
                 >
                   skywind3000/ECDICT
-                </a>
+                </button>
                 ，按需下载至 data/dicts/
               </p>
             </section>

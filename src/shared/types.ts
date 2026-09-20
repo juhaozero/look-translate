@@ -9,6 +9,7 @@ export type AppInfo = {
 export type AppPaths = {
   dataDir: string;
   configPath: string;
+  logDir: string;
   dictsDir: string;
   recommendedDictPath: string;
   recommendedDictRelative: string;
