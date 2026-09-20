@@ -69,6 +69,7 @@ export type AppConfig = {
     hotkey_ocr: string;
     hotkey_enabled: boolean;
     follow_system_proxy: boolean;
+    launch_at_startup: boolean;
   };
   engine: {
     active: string;
@@ -99,6 +100,7 @@ export function emptyConfig(): AppConfig {
       hotkey_ocr: "Ctrl+Shift+S",
       hotkey_enabled: true,
       follow_system_proxy: true,
+      launch_at_startup: false,
     },
     engine: {
       active: "microsoft",

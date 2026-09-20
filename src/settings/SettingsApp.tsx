@@ -420,6 +420,13 @@ export function SettingsApp() {
                   onChange={(checked) => updateGeneral("hotkey_enabled", checked)}
                 />
                 <ToggleRow
+                  label="开机自启"
+                  checked={config.general.launch_at_startup}
+                  onChange={(checked) =>
+                    updateGeneral("launch_at_startup", checked)
+                  }
+                />
+                <ToggleRow
                   label="跟随系统代理"
                   checked={config.general.follow_system_proxy}
                   onChange={(checked) =>
@@ -1186,6 +1193,7 @@ function normalizeConfig(config: AppConfig): AppConfig {
       target_lang: normalizeLangCode(config.general.target_lang) || "zh-CN",
       source_lang: normalizeLangCode(config.general.source_lang) || "auto",
       hotkey_translate: config.general.hotkey_translate.trim() || "Ctrl+Shift+D",
+      launch_at_startup: Boolean(config.general.launch_at_startup),
     },
     engine: {
       ...config.engine,

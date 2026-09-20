@@ -25,6 +25,7 @@ lru = "0.12"
 mdict-rs = { version = "0.1.4", features = ["lzo"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tauri-plugin-dialog = "2.7.3"
+tauri-plugin-autostart = "2"
 image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
 url = "2"

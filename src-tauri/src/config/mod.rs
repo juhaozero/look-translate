@@ -83,6 +83,8 @@ pub struct GeneralConfig {
     pub hotkey_ocr: String,
     pub hotkey_enabled: bool,
     pub follow_system_proxy: bool,
+    /// Launch Look Translate when the OS user logs in.
+    pub launch_at_startup: bool,
 }
 
 impl Default for GeneralConfig {
@@ -94,6 +96,7 @@ impl Default for GeneralConfig {
             hotkey_ocr: "Ctrl+Shift+S".into(),
             hotkey_enabled: true,
             follow_system_proxy: true,
+            launch_at_startup: false,
         }
     }
 }

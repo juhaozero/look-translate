@@ -2,11 +2,11 @@
 
 ## 产物
 
-| 目标 | 命令 | 默认输出目录 |
-|---|---|---|
+| 目标         | 命令                       | 默认输出目录                            |
+| ------------ | -------------------------- | --------------------------------------- |
 | NSIS（推荐） | `npm run tauri:build:nsis` | `src-tauri/target/release/bundle/nsis/` |
-| MSI | `npm run tauri:build:msi` | `src-tauri/target/release/bundle/msi/` |
-| 两者 | `npm run tauri:build` | 同上两个目录 |
+| MSI          | `npm run tauri:build:msi`  | `src-tauri/target/release/bundle/msi/`  |
+| 两者         | `npm run tauri:build`      | 同上两个目录                            |
 
 若设置了 `CARGO_TARGET_DIR`，产物会落在该目录下的 `release/bundle/`。
 
@@ -62,10 +62,10 @@ src-tauri/target/debug/data/
 
 ### 触发
 
-| 触发 | 行为 |
-|---|---|
-| 推送正式标签 `vX.Y.Z` | 生成版本间隔 changelog → 校验版本 → 打 NSIS + MSI → 创建 **draft** Release |
-| Actions 里手动 `workflow_dispatch` | 仅构建并把安装包上传为 workflow artifact，**不**创建 Release |
+| 触发                               | 行为                                                                       |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| 推送正式标签 `vX.Y.Z`              | 生成版本间隔 changelog → 校验版本 → 打 NSIS + MSI → 创建 **draft** Release |
+| Actions 里手动 `workflow_dispatch` | 仅构建并把安装包上传为 workflow artifact，**不**创建 Release               |
 
 不支持预发布标签（如 `v1.0.0-rc.1`）；试包请用手动触发。
 
@@ -82,9 +82,6 @@ src-tauri/target/debug/data/
 git tag v0.2.0
 git push origin v0.2.0
 ```
-
-4. 等待 Actions 完成；在 GitHub Releases 打开对应 **draft**，核对安装包与 changelog。
-5. 确认无误后手动 **Publish release**。
 
 ### 版本校验
 

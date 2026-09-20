@@ -30,6 +30,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .invoke_handler(tauri::generate_handler![
             commands::app_info::get_app_info,
             commands::window_cmd::show_settings_window,
@@ -61,6 +65,7 @@ pub fn run() {
                 std::io::Error::new(std::io::ErrorKind::Other, e)
             })?;
             let hotkey_enabled = config.general.hotkey_enabled;
+            let launch_at_startup = config.general.launch_at_startup;
             app.manage(ConfigState::new(paths, config));
             app.manage(CaptureState::default());
             app.manage(TranslationState::default());
@@ -71,6 +76,11 @@ pub fn run() {
 
             if let Err(err) = hotkey::apply_from_state(app.handle()) {
                 eprintln!("[look-translate] hotkey apply failed on startup: {err}");
+            }
+            if let Err(err) =
+                commands::config_cmd::sync_launch_at_startup(app.handle(), launch_at_startup)
+            {
+                eprintln!("[look-translate] autostart sync failed on startup: {err}");
             }
 
             let settings_item =

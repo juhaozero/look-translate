@@ -10,6 +10,7 @@ use crate::dictionary::{
 };
 use crate::hotkey;
 use crate::tray_state::TrayHotkeyToggle;
+use tauri_plugin_autostart::ManagerExt;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -158,6 +159,7 @@ fn apply_saved_config(
         *guard = saved.clone();
     }
     hotkey::apply(app, &saved)?;
+    sync_launch_at_startup(app, saved.general.launch_at_startup)?;
     if let Some(tray) = app.try_state::<TrayHotkeyToggle>() {
         let _ = tray.item.set_checked(saved.general.hotkey_enabled);
     }
@@ -165,6 +167,27 @@ fn apply_saved_config(
         dict.invalidate();
     }
     Ok(saved)
+}
+
+/// Keep OS login-item registration in sync with `general.launch_at_startup`.
+pub fn sync_launch_at_startup(app: &AppHandle, enabled: bool) -> Result<(), String> {
+    let manager = app.autolaunch();
+    let currently = manager
+        .is_enabled()
+        .map_err(|e| format!("读取开机自启状态失败: {e}"))?;
+    if enabled == currently {
+        return Ok(());
+    }
+    if enabled {
+        manager
+            .enable()
+            .map_err(|e| format!("启用开机自启失败: {e}"))?;
+    } else {
+        manager
+            .disable()
+            .map_err(|e| format!("关闭开机自启失败: {e}"))?;
+    }
+    Ok(())
 }
 
 fn open_path_with_default_app(path: &std::path::Path) -> Result<(), String> {

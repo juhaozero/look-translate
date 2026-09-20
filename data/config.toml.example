@@ -6,6 +6,7 @@ hotkey_translate = "Shift+Q"
 hotkey_ocr = "Ctrl+Shift+D"
 hotkey_enabled = true
 follow_system_proxy = true
+launch_at_startup = true
 
 [engine]
 active = "microsoft"
