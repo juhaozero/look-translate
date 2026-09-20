@@ -411,19 +411,19 @@ export function SettingsApp() {
     }
   }
 
-  async function openEngineProfilesDoc() {
-    setStatus(null);
-    try {
-      await invoke("open_engine_profiles_doc");
-      setStatus({ tone: "ok", text: "已打开自定义引擎填写说明" });
-    } catch (error) {
-      console.error(error);
-      setStatus({
-        tone: "err",
-        text: `${String(error)}（也可直接查看仓库 docs/engine-profiles.md）`,
-      });
-    }
-  }
+  // async function openEngineProfilesDoc() {
+  //   setStatus(null);
+  //   try {
+  //     await invoke("open_engine_profiles_doc");
+  //     setStatus({ tone: "ok", text: "已打开自定义引擎填写说明" });
+  //   } catch (error) {
+  //     console.error(error);
+  //     setStatus({
+  //       tone: "err",
+  //       text: `${String(error)}（也可直接查看仓库 docs/engine-profiles.md）`,
+  //     });
+  //   }
+  // }
 
   function updateGeneral<K extends keyof AppConfig["general"]>(
     key: K,
