@@ -17,7 +17,7 @@
 | 取词       | 剪贴板模拟（备份→Ctrl+C→读取→还原）；失败不自动走 OCR               |
 | OCR        | 独立快捷键 → 框选；引擎可切换：系统 OCR / Tesseract.js；互不兜底 |
 | 技术栈     | Tauri 2 + Rust + React                                              |
-| 翻译引擎   | 多引擎可配置；可填 Key；默认微软；可选 `microsoft_web` / `google` / `google_web` / `cloudflare`；新厂商用 `[engines.<id>]` Config-driven（ADR 0001） |
+| 翻译引擎   | 多引擎可并行启用（`engine.actives`）；可填 Key；默认微软；可选 `microsoft_web` / `google` / `google_web` / `cloudflare`；新厂商用 `[engines.<id>]` Config-driven（ADR 0001）；浮层按引擎分块展示 |
 | 语言       | 源语言 auto，默认目标语 `zh-CN`（Google 风格；兼容旧 `zh-Hans`）；设置可改；浮层可改目标语并重译 |
 | 词库格式   | MVP 仅 MDict；`DictionaryProvider` 预留扩展                         |
 | 推荐词库   | ECDICT mdx（headless）按需下载至 `data/dicts/ecdict.mdx`，不预装安装包 |

@@ -34,6 +34,15 @@ export type CapturePayload = {
   capturedAtMs: number;
 };
 
+export type EngineTranslationResult = {
+  engine: string;
+  status: "loading" | "ok" | "error" | string;
+  text?: string | null;
+  error?: string | null;
+  cached?: boolean;
+  detectedSourceLang?: string | null;
+};
+
 export type TranslationPayload = {
   status: "loading" | "ok" | "error" | string;
   sourceText: string;
@@ -46,6 +55,8 @@ export type TranslationPayload = {
   cached?: boolean;
   dictionaryText?: string | null;
   dictionarySource?: string | null;
+  /** Per-engine results when multiple services run in parallel. */
+  results?: EngineTranslationResult[];
 };
 
 export type InstallRecommendedDictResult = {
@@ -73,6 +84,8 @@ export type AppConfig = {
   };
   engine: {
     active: string;
+    /** Engines that run in parallel (order preserved). */
+    actives?: string[];
     microsoft_api_key?: string | null;
     microsoft_region?: string | null;
     google_api_key?: string | null;
@@ -104,6 +117,7 @@ export function emptyConfig(): AppConfig {
     },
     engine: {
       active: "microsoft",
+      actives: ["microsoft"],
       microsoft_api_key: null,
       microsoft_region: null,
       google_api_key: null,

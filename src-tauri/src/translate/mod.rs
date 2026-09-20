@@ -39,6 +39,52 @@ pub struct TranslationResult {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EngineTranslationResult {
+    pub engine: String,
+    pub status: String,
+    pub text: Option<String>,
+    pub error: Option<String>,
+    pub cached: bool,
+    pub detected_source_lang: Option<String>,
+}
+
+impl EngineTranslationResult {
+    pub fn loading(engine: impl Into<String>) -> Self {
+        Self {
+            engine: engine.into(),
+            status: "loading".into(),
+            text: None,
+            error: None,
+            cached: false,
+            detected_source_lang: None,
+        }
+    }
+
+    pub fn ok(result: TranslationResult, cached: bool) -> Self {
+        Self {
+            engine: result.engine,
+            status: "ok".into(),
+            text: Some(result.text),
+            error: None,
+            cached,
+            detected_source_lang: result.detected_source_lang,
+        }
+    }
+
+    pub fn fail(engine: impl Into<String>, error: impl Into<String>) -> Self {
+        Self {
+            engine: engine.into(),
+            status: "error".into(),
+            text: None,
+            error: Some(error.into()),
+            cached: false,
+            detected_source_lang: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TranslationPayload {
     pub status: String,
     pub source_text: String,
@@ -51,10 +97,20 @@ pub struct TranslationPayload {
     pub cached: bool,
     pub dictionary_text: Option<String>,
     pub dictionary_source: Option<String>,
+    pub results: Vec<EngineTranslationResult>,
 }
 
 impl TranslationPayload {
-    pub fn loading(source_text: &str, source_lang: &str, target_lang: &str) -> Self {
+    pub fn loading(
+        source_text: &str,
+        source_lang: &str,
+        target_lang: &str,
+        engines: &[String],
+    ) -> Self {
+        let results = engines
+            .iter()
+            .map(|id| EngineTranslationResult::loading(id.clone()))
+            .collect();
         Self {
             status: "loading".into(),
             source_text: source_text.into(),
@@ -67,43 +123,51 @@ impl TranslationPayload {
             cached: false,
             dictionary_text: None,
             dictionary_source: None,
+            results,
         }
     }
 
-    pub fn ok(source_text: &str, result: TranslationResult, cached: bool) -> Self {
-        Self {
-            status: "ok".into(),
-            source_text: source_text.into(),
-            translated_text: Some(result.text),
-            engine: Some(result.engine),
-            source_lang: result.source_lang,
-            target_lang: result.target_lang,
-            detected_source_lang: result.detected_source_lang,
-            error: None,
-            cached,
-            dictionary_text: None,
-            dictionary_source: None,
-        }
-    }
-
-    pub fn fail(
+    pub fn from_engine_results(
         source_text: &str,
         source_lang: &str,
         target_lang: &str,
-        error: impl Into<String>,
+        results: Vec<EngineTranslationResult>,
     ) -> Self {
+        let first_ok = results.iter().find(|r| r.status == "ok");
+        let still_loading = results.iter().any(|r| r.status == "loading");
+        let all_failed = !results.is_empty() && results.iter().all(|r| r.status == "error");
+        let status = if still_loading {
+            "loading"
+        } else if first_ok.is_some() {
+            "ok"
+        } else if all_failed {
+            "error"
+        } else {
+            "error"
+        };
+
+        let error = if status == "error" {
+            results
+                .iter()
+                .find_map(|r| r.error.clone())
+                .or_else(|| Some("全部翻译引擎均失败".into()))
+        } else {
+            None
+        };
+
         Self {
-            status: "error".into(),
+            status: status.into(),
             source_text: source_text.into(),
-            translated_text: None,
-            engine: None,
+            translated_text: first_ok.and_then(|r| r.text.clone()),
+            engine: first_ok.map(|r| r.engine.clone()),
             source_lang: source_lang.into(),
             target_lang: target_lang.into(),
-            detected_source_lang: None,
-            error: Some(error.into()),
-            cached: false,
+            detected_source_lang: first_ok.and_then(|r| r.detected_source_lang.clone()),
+            error,
+            cached: first_ok.map(|r| r.cached).unwrap_or(false),
             dictionary_text: None,
             dictionary_source: None,
+            results,
         }
     }
 
@@ -138,8 +202,17 @@ pub async fn translate_with_config(
     config: &AppConfig,
     req: TranslationRequest,
 ) -> Result<TranslationResult, String> {
+    let engine_id = config.engine.active.trim();
+    translate_with_engine(config, engine_id, req).await
+}
+
+pub async fn translate_with_engine(
+    config: &AppConfig,
+    engine_id: &str,
+    req: TranslationRequest,
+) -> Result<TranslationResult, String> {
     let client = build_http_client(config.general.follow_system_proxy)?;
-    let active = config.engine.active.trim();
+    let active = engine_id.trim();
     match active {
         "microsoft" => {
             let translator = MicrosoftTranslator::from_config(config, client)?;
@@ -162,7 +235,7 @@ pub async fn translate_with_config(
             translator.translate(&req).await
         }
         other if !other.is_empty() && !is_builtin_engine(other) => {
-            let translator = ConfigDrivenTranslator::from_config(config, client)?;
+            let translator = ConfigDrivenTranslator::from_profile(config, other, client)?;
             translator.translate(&req).await
         }
         other => Err(format!(
@@ -203,8 +276,53 @@ mod tests {
 
     #[test]
     fn payload_loading_status() {
-        let p = TranslationPayload::loading("hi", "auto", "zh-CN");
+        let engines = vec!["microsoft".into(), "google_web".into()];
+        let p = TranslationPayload::loading("hi", "auto", "zh-CN", &engines);
         assert_eq!(p.status, "loading");
         assert!(p.translated_text.is_none());
+        assert_eq!(p.results.len(), 2);
+        assert!(p.results.iter().all(|r| r.status == "loading"));
+    }
+
+    #[test]
+    fn payload_picks_first_ok() {
+        let results = vec![
+            EngineTranslationResult::fail("microsoft", "no key"),
+            EngineTranslationResult::ok(
+                TranslationResult {
+                    engine: "google_web".into(),
+                    text: "你好".into(),
+                    source_lang: "auto".into(),
+                    target_lang: "zh-CN".into(),
+                    detected_source_lang: Some("en".into()),
+                },
+                false,
+            ),
+        ];
+        let p = TranslationPayload::from_engine_results("hi", "auto", "zh-CN", results);
+        assert_eq!(p.status, "ok");
+        assert_eq!(p.translated_text.as_deref(), Some("你好"));
+        assert_eq!(p.engine.as_deref(), Some("google_web"));
+    }
+
+    #[test]
+    fn payload_keeps_loading_while_partial_ok() {
+        let results = vec![
+            EngineTranslationResult::ok(
+                TranslationResult {
+                    engine: "google_web".into(),
+                    text: "你好".into(),
+                    source_lang: "auto".into(),
+                    target_lang: "zh-CN".into(),
+                    detected_source_lang: Some("en".into()),
+                },
+                false,
+            ),
+            EngineTranslationResult::loading("cloudflare"),
+        ];
+        let p = TranslationPayload::from_engine_results("hi", "auto", "zh-CN", results);
+        assert_eq!(p.status, "loading");
+        assert_eq!(p.translated_text.as_deref(), Some("你好"));
+        assert_eq!(p.engine.as_deref(), Some("google_web"));
     }
 }

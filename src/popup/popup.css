@@ -15,7 +15,11 @@
 
 .popup-shell {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
   min-height: 100vh;
+  max-height: 100vh;
   padding: 14px 14px 12px;
   background:
     radial-gradient(120% 80% at 0% 0%, rgb(18 184 134 / 8%), transparent 45%),
@@ -46,6 +50,7 @@
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .popup-title {
@@ -99,6 +104,30 @@
   gap: 8px;
   align-items: center;
   margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.popup-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.popup-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.popup-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.popup-body::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .popup-lang {
@@ -269,8 +298,67 @@
   color: #0f172a;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 120px;
+  max-height: 140px;
   overflow: auto;
+}
+
+.popup-result-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.popup-btn-copy {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+
+.popup-result.is-error {
+  background: #fff8f8;
+  border-color: #ffe3e3;
+  box-shadow: inset 3px 0 0 var(--popup-danger);
+}
+
+.popup-result.is-loading {
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-color: #e2e8f0;
+  box-shadow: inset 3px 0 0 #94a3b8;
+}
+
+.popup-result-error {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 500;
+  color: var(--popup-danger);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.popup-chip.is-error {
+  background: #fff5f5;
+  color: var(--popup-danger);
+}
+
+.popup-chip.is-loading {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.popup-spinner {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid #cbd5e1;
+  border-top-color: #64748b;
+  border-radius: 50%;
+  animation: popup-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes popup-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .popup-dict {

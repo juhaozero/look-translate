@@ -56,6 +56,7 @@ pub fn run() {
             commands::capture_cmd::submit_ocr_text,
             commands::translate_cmd::get_last_translation,
             commands::translate_cmd::translate_text,
+            commands::translate_cmd::clear_translation_cache,
         ])
         .setup(|app| {
             let paths = resolve_paths().map_err(|e| {
@@ -102,7 +103,7 @@ pub fn run() {
             let _tray = TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().expect("missing default window icon").clone())
                 .menu(&menu)
-                .tooltip(format!("{APP_NAME} — {APP_DESCRIPTION}"))
+                .tooltip(format!("{APP_NAME} - {APP_DESCRIPTION}"))
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "settings" => {
                         let _ = commands::window_cmd::open_settings(app);

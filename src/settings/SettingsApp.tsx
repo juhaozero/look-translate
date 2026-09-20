@@ -2,6 +2,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   type ComponentType,
 } from "react";
@@ -16,7 +17,7 @@ import type {
   InstallRecommendedDictResult,
 } from "../shared/types";
 import { emptyConfig } from "../shared/types";
-import { OCR_ENGINES, SOURCE_LANGS, TARGET_LANGS, BUILTIN_ENGINE_IDS, buildEngineList, normalizeLangCode } from "../shared/options";
+import { OCR_ENGINES, SOURCE_LANGS, TARGET_LANGS, BUILTIN_ENGINE_IDS, buildEngineList, normalizeLangCode, resolveActives } from "../shared/options";
 import { EngineIcon, IconEdit, OcrEngineIcon } from "../shared/EngineIcon";
 import { HotkeyRecorder } from "./HotkeyRecorder";
 import {
@@ -60,6 +61,8 @@ const PAGE_TITLE: Record<NavId, string> = {
   about: "关于应用",
 };
 
+const AUTO_SAVE_MS = 450;
+
 export function SettingsApp() {
   const [nav, setNav] = useState<NavId>("general");
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -76,6 +79,13 @@ export function SettingsApp() {
   const [editingEngine, setEditingEngine] = useState<string | null>(null);
   const [profileBusy, setProfileBusy] = useState(false);
 
+  const skipAutoSaveRef = useRef(true);
+  const saveTimerRef = useRef<number | null>(null);
+  const saveSeqRef = useRef(0);
+  const statusClearRef = useRef<number | null>(null);
+  const configRef = useRef(config);
+  configRef.current = config;
+
   const dirty = useMemo(
     () => serializeConfig(config) !== savedSnapshot && savedSnapshot.length > 0,
     [config, savedSnapshot],
@@ -85,6 +95,29 @@ export function SettingsApp() {
     () => buildEngineList(config.engines),
     [config.engines],
   );
+
+  function showTransientOk(text: string) {
+    setStatus({ tone: "ok", text });
+    if (statusClearRef.current !== null) {
+      window.clearTimeout(statusClearRef.current);
+    }
+    statusClearRef.current = window.setTimeout(() => {
+      setStatus((current) =>
+        current?.tone === "ok" && current.text === text ? null : current,
+      );
+      statusClearRef.current = null;
+    }, 1600);
+  }
+
+  function applyConfigFromDisk(next: AppConfig) {
+    skipAutoSaveRef.current = true;
+    const normalized = normalizeConfig(next);
+    setConfig(normalized);
+    setSavedSnapshot(serializeConfig(normalized));
+    window.setTimeout(() => {
+      skipAutoSaveRef.current = false;
+    }, 0);
+  }
 
   async function loadAll() {
     setLoading(true);
@@ -98,9 +131,7 @@ export function SettingsApp() {
       ]);
       setInfo(appInfo);
       setPaths(appPaths);
-      const normalized = normalizeConfig(appConfig);
-      setConfig(normalized);
-      setSavedSnapshot(serializeConfig(normalized));
+      applyConfigFromDisk(appConfig);
       setHotkeyStatus(statusInfo);
     } catch (error: unknown) {
       console.error(error);
@@ -112,6 +143,14 @@ export function SettingsApp() {
 
   useEffect(() => {
     void loadAll();
+    return () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+      }
+      if (statusClearRef.current !== null) {
+        window.clearTimeout(statusClearRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -120,33 +159,82 @@ export function SettingsApp() {
     }
   }, [nav]);
 
+  useEffect(() => {
+    if (loading || skipAutoSaveRef.current || !dirty) {
+      return;
+    }
+
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      void persistConfig(configRef.current, { silentOk: true });
+    }, AUTO_SAVE_MS);
+
+    return () => {
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, [config, dirty, loading]);
+
+  async function persistConfig(
+    nextConfig: AppConfig,
+    options?: { silentOk?: boolean },
+  ) {
+    const validation = validateConfig(nextConfig);
+    if (validation) {
+      setStatus({ tone: "err", text: validation });
+      return false;
+    }
+
+    const seq = ++saveSeqRef.current;
+    setSaving(true);
+    try {
+      const payload = normalizeConfig(nextConfig);
+      await invoke<AppConfig>("save_config", { config: payload });
+      if (seq !== saveSeqRef.current) {
+        return true;
+      }
+      skipAutoSaveRef.current = true;
+      setConfig(payload);
+      setSavedSnapshot(serializeConfig(payload));
+      window.setTimeout(() => {
+        skipAutoSaveRef.current = false;
+      }, 0);
+      try {
+        const statusInfo = await invoke<HotkeyStatus>("get_hotkey_status");
+        if (seq === saveSeqRef.current) {
+          setHotkeyStatus(statusInfo);
+        }
+      } catch {
+        // Hotkey refresh is best-effort after save.
+      }
+      if (options?.silentOk) {
+        showTransientOk("已自动保存");
+      }
+      return true;
+    } catch (error) {
+      console.error(error);
+      if (seq === saveSeqRef.current) {
+        setStatus({ tone: "err", text: String(error) });
+      }
+      return false;
+    } finally {
+      if (seq === saveSeqRef.current) {
+        setSaving(false);
+      }
+    }
+  }
+
   async function openPopupPreview() {
     try {
       await invoke("show_popup_window");
     } catch (error) {
       console.error(error);
       setStatus({ tone: "err", text: String(error) });
-    }
-  }
-
-  async function handleSave() {
-    const validation = validateConfig(config);
-    if (validation) {
-      setStatus({ tone: "err", text: validation });
-      return;
-    }
-
-    setSaving(true);
-    setStatus(null);
-    try {
-      const payload = normalizeConfig(config);
-      await invoke<AppConfig>("save_config", { config: payload });
-      await loadAll();
-    } catch (error) {
-      console.error(error);
-      setStatus({ tone: "err", text: String(error) });
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -200,8 +288,7 @@ export function SettingsApp() {
       const result = await invoke<InstallRecommendedDictResult>(
         "install_recommended_dict",
       );
-      setConfig(result.config);
-      setSavedSnapshot(serializeConfig(result.config));
+      applyConfigFromDisk(result.config);
       const appPaths = await invoke<AppPaths>("get_app_paths");
       setPaths(appPaths);
       const msg =
@@ -235,20 +322,23 @@ export function SettingsApp() {
   }
 
   async function reloadConfigFromDisk() {
-    if (dirty) {
+    if (dirty || saving) {
       const ok = window.confirm(
-        "当前有未保存的修改，重新加载将丢弃这些修改。继续？",
+        "当前有未写入磁盘的修改，重新加载将丢弃这些修改。继续？",
       );
       if (!ok) {
         return;
       }
     }
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
     setStatus(null);
     try {
       const next = await invoke<AppConfig>("reload_config");
-      setConfig(next);
-      setSavedSnapshot(serializeConfig(next));
-      setStatus({ tone: "ok", text: "已从磁盘重新加载配置" });
+      applyConfigFromDisk(next);
+      showTransientOk("已从磁盘重新加载配置");
     } catch (error) {
       console.error(error);
       setStatus({ tone: "err", text: String(error) });
@@ -257,9 +347,9 @@ export function SettingsApp() {
 
   async function addCustomTemplate() {
     if (profileBusy) return;
-    if (dirty) {
+    if (dirty || saving) {
       const ok = window.confirm(
-        "添加模板会写入配置文件。若有未保存修改，建议先保存。继续？",
+        "当前还有未自动保存完的修改。添加模板会写入配置文件，可能覆盖这些修改。继续？",
       );
       if (!ok) {
         return;
@@ -271,8 +361,7 @@ export function SettingsApp() {
       const result = await invoke<EnsureProfileResult>(
         "ensure_custom_engine_profile",
       );
-      setConfig(result.config);
-      setSavedSnapshot(serializeConfig(result.config));
+      applyConfigFromDisk(result.config);
       setStatus({
         tone: "ok",
         text: result.message,
@@ -312,13 +401,39 @@ export function SettingsApp() {
     });
   }
 
-  function selectEngine(engineId: string) {
-    if (config.engine.active === engineId) {
+  function onEngineToggle(engineId: string, turnOn: boolean) {
+    const current = resolveActives(config.engine);
+    if (turnOn) {
+      if (current.includes(engineId)) {
+        return;
+      }
+      const actives = [...current, engineId];
+      setConfig({
+        ...config,
+        engine: {
+          ...config.engine,
+          actives,
+          active: actives[0] ?? engineId,
+        },
+      });
+      setStatus(null);
       return;
     }
+    if (current.length <= 1 && current.includes(engineId)) {
+      setStatus({
+        tone: "err",
+        text: "请至少保留一个翻译服务",
+      });
+      return;
+    }
+    const actives = current.filter((id) => id !== engineId);
     setConfig({
       ...config,
-      engine: { ...config.engine, active: engineId },
+      engine: {
+        ...config.engine,
+        actives,
+        active: actives[0] ?? "microsoft",
+      },
     });
     setStatus(null);
   }
@@ -332,19 +447,6 @@ export function SettingsApp() {
       ocr: { ...config.ocr, engine: engineId },
     });
     setStatus(null);
-  }
-
-  function onEngineToggle(engineId: string, turnOn: boolean) {
-    if (turnOn) {
-      selectEngine(engineId);
-      return;
-    }
-    if (config.engine.active === engineId) {
-      setStatus({
-        tone: "err",
-        text: "请先打开其他引擎，不能关闭当前唯一服务",
-      });
-    }
   }
 
   function onOcrEngineToggle(engineId: string, turnOn: boolean) {
@@ -394,19 +496,11 @@ export function SettingsApp() {
             <h1>{PAGE_TITLE[nav]}</h1>
             {loading ? (
               <p className="settings-subtle">加载中…</p>
-            ) : dirty ? (
-              <p className="settings-subtle settings-subtle-warn">有未保存的更改</p>
-            ) : null}
-          </div>
-          <div className="settings-main-actions">
-            <button
-              type="button"
-              className="settings-btn settings-btn-primary"
-              disabled={saving || loading}
-              onClick={() => void handleSave()}
-            >
-              {saving ? "保存中…" : "保存"}
-            </button>
+            ) : saving || dirty ? (
+              <p className="settings-subtle">自动保存中…</p>
+            ) : (
+              <p className="settings-subtle">更改后自动保存</p>
+            )}
           </div>
         </header>
 
@@ -517,9 +611,14 @@ export function SettingsApp() {
             <>
             <section className="service-list-shell" aria-label="翻译服务">
               <h2 className="service-section-title">翻译服务</h2>
+              <p className="service-section-hint">
+                可同时开启多个服务，划词时并行翻译并在浮层分别展示。
+              </p>
               <ul className="service-list">
                 {engineList.map((engine) => {
-                  const active = config.engine.active === engine.value;
+                  const active = resolveActives(config.engine).includes(
+                    engine.value,
+                  );
                   const expanded = editingEngine === engine.value;
                   return (
                     <li
@@ -534,7 +633,9 @@ export function SettingsApp() {
                         <button
                           type="button"
                           className="service-card-main"
-                          onClick={() => selectEngine(engine.value)}
+                          onClick={() =>
+                            onEngineToggle(engine.value, !active)
+                          }
                         >
                           <EngineIcon
                             engine={engine.value}
@@ -559,7 +660,11 @@ export function SettingsApp() {
                             }
                             role="switch"
                             aria-checked={active}
-                            aria-label={`将 ${engine.label} 设为当前引擎`}
+                            aria-label={
+                              active
+                                ? `关闭 ${engine.label}`
+                                : `启用 ${engine.label}`
+                            }
                             onClick={() =>
                               onEngineToggle(engine.value, !active)
                             }
@@ -1186,6 +1291,7 @@ function normalizeConfig(config: AppConfig): AppConfig {
     config.ocr?.engine?.trim().toLowerCase() === "tesseract"
       ? "tesseract"
       : "system";
+  const actives = resolveActives(config.engine);
   return {
     ...config,
     general: {
@@ -1197,7 +1303,8 @@ function normalizeConfig(config: AppConfig): AppConfig {
     },
     engine: {
       ...config.engine,
-      active: config.engine.active.trim() || "microsoft",
+      actives,
+      active: actives[0] || "microsoft",
       microsoft_api_key: normalizeOptionalKey(config.engine.microsoft_api_key),
       microsoft_region: normalizeOptionalKey(config.engine.microsoft_region),
       google_api_key: normalizeOptionalKey(config.engine.google_api_key),
@@ -1235,7 +1342,11 @@ function validateConfig(config: AppConfig): string | null {
   ) {
     return "划词热键与 OCR 热键不能相同";
   }
-  if (config.engine.active === "cloudflare") {
+  const actives = resolveActives(config.engine);
+  if (actives.length === 0) {
+    return "请至少启用一个翻译服务";
+  }
+  if (actives.includes("cloudflare")) {
     const endpoint = (config.engine.cloudflare_endpoint ?? "").trim();
     if (!endpoint) {
       return "Cloudflare 翻译需填写 Worker 地址";
@@ -1244,17 +1355,18 @@ function validateConfig(config: AppConfig): string | null {
       return "Cloudflare 翻译地址须以 http:// 或 https:// 开头";
     }
   }
-  const active = config.engine.active.trim();
-  if (active && !BUILTIN_ENGINE_IDS.has(active)) {
-    const profile = config.engines?.[active];
-    if (!profile) {
-      return `未找到自定义引擎 [engines.${active}]，请检查 config.toml`;
-    }
-    if (!(profile.url ?? "").trim()) {
-      return `自定义引擎 ${active} 缺少 url`;
-    }
-    if (!(profile.text_path ?? "").trim()) {
-      return `自定义引擎 ${active} 缺少 text_path`;
+  for (const active of actives) {
+    if (!BUILTIN_ENGINE_IDS.has(active)) {
+      const profile = config.engines?.[active];
+      if (!profile) {
+        return `未找到自定义引擎 [engines.${active}]，请检查 config.toml`;
+      }
+      if (!(profile.url ?? "").trim()) {
+        return `自定义引擎 ${active} 缺少 url`;
+      }
+      if (!(profile.text_path ?? "").trim()) {
+        return `自定义引擎 ${active} 缺少 text_path`;
+      }
     }
   }
   return null;

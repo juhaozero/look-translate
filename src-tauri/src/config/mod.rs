@@ -104,7 +104,11 @@ impl Default for GeneralConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct EngineConfig {
+    /// Primary / first active engine (kept in sync with `actives[0]`).
     pub active: String,
+    /// Engines that run in parallel (order preserved; at least one after normalize).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub actives: Vec<String>,
     /// Microsoft Translator subscription key (stored locally only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub microsoft_api_key: Option<String>,
@@ -134,11 +138,27 @@ impl Default for EngineConfig {
     fn default() -> Self {
         Self {
             active: "microsoft".into(),
+            actives: vec!["microsoft".into()],
             microsoft_api_key: None,
             microsoft_region: None,
             google_api_key: None,
             cloudflare_endpoint: None,
             cloudflare_secret: None,
+        }
+    }
+}
+
+impl EngineConfig {
+    /// Normalized list of engines to run (never empty after config normalize).
+    pub fn resolved_actives(&self) -> Vec<String> {
+        if !self.actives.is_empty() {
+            return self.actives.clone();
+        }
+        let active = self.active.trim();
+        if active.is_empty() {
+            vec!["microsoft".into()]
+        } else {
+            vec![active.to_string()]
         }
     }
 }
@@ -328,6 +348,7 @@ pub fn serialize_config(config: &AppConfig) -> Result<String, String> {
 /// Rewrite legacy Microsoft-style Chinese tags to Google-style.
 fn normalize_config_langs(config: &mut AppConfig) {
     use crate::lang::normalize_lang_code;
+    use std::collections::HashSet;
 
     config.general.target_lang = normalize_lang_code(&config.general.target_lang);
     if config.general.target_lang.is_empty() {
@@ -342,10 +363,40 @@ fn normalize_config_langs(config: &mut AppConfig) {
         "tesseract" => "tesseract".into(),
         _ => "system".into(),
     };
-    // Legacy engine id from earlier builds.
-    if config.engine.active.trim().eq_ignore_ascii_case("self_hosted") {
-        config.engine.active = "cloudflare".into();
+
+    // Parallel engine list: empty actives → fall back to single `active`.
+    let mut raw: Vec<String> = if config.engine.actives.is_empty() {
+        let a = config.engine.active.trim();
+        if a.is_empty() {
+            vec!["microsoft".into()]
+        } else {
+            vec![a.to_string()]
+        }
+    } else {
+        config.engine.actives.clone()
+    };
+
+    let mut seen = HashSet::new();
+    let mut cleaned = Vec::new();
+    for id in raw.drain(..) {
+        let mut id = id.trim().to_string();
+        if id.is_empty() {
+            continue;
+        }
+        // Legacy engine id from earlier builds.
+        if id.eq_ignore_ascii_case("self_hosted") {
+            id = "cloudflare".into();
+        }
+        let key = id.to_ascii_lowercase();
+        if seen.insert(key) {
+            cleaned.push(id);
+        }
     }
+    if cleaned.is_empty() {
+        cleaned.push("microsoft".into());
+    }
+    config.engine.actives = cleaned.clone();
+    config.engine.active = cleaned[0].clone();
 }
 
 #[cfg(test)]
@@ -377,6 +428,8 @@ active = "microsoft"
         assert!(parsed.dictionary.enabled);
         assert!(parsed.dictionary.paths.is_empty());
         assert_eq!(parsed.ocr.engine, "system");
+        assert_eq!(parsed.engine.actives, vec!["microsoft".to_string()]);
+        assert_eq!(parsed.engine.active, "microsoft");
     }
 
     #[test]
@@ -423,11 +476,30 @@ self_hosted_secret = "s3cret"
 "#;
         let parsed = parse_config(raw).unwrap();
         assert_eq!(parsed.engine.active, "cloudflare");
+        assert_eq!(parsed.engine.actives, vec!["cloudflare".to_string()]);
         assert_eq!(
             parsed.engine.cloudflare_endpoint.as_deref(),
             Some("https://example.workers.dev/")
         );
         assert_eq!(parsed.engine.cloudflare_secret.as_deref(), Some("s3cret"));
+    }
+
+    #[test]
+    fn actives_list_normalizes_and_syncs_active() {
+        let raw = r#"
+[engine]
+actives = ["google_web", "microsoft_web", "google_web", "self_hosted"]
+"#;
+        let parsed = parse_config(raw).unwrap();
+        assert_eq!(
+            parsed.engine.actives,
+            vec![
+                "google_web".to_string(),
+                "microsoft_web".to_string(),
+                "cloudflare".to_string()
+            ]
+        );
+        assert_eq!(parsed.engine.active, "google_web");
     }
 
     #[test]

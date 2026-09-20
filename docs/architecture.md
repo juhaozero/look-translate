@@ -74,7 +74,7 @@ look-translate/
 - **路径**：`{executable_dir}/data/config.toml`（开发时即 `src-tauri/target/debug/data/`）
 - **启动**：目录不存在则创建；文件不存在则写入默认配置
 - **命令**：`get_app_paths` / `get_config` / `save_config`
-- **字段**：`general`（语言/热键/代理）、`engine`（active + microsoft_* + google_api_key）、`dictionary`（enabled + paths）
+- **字段**：`general`（语言/热键/代理）、`engine`（`actives` 并行列表 + `active` 首项兼容 + microsoft_* / google_* / cloudflare_*）、`dictionary`（enabled + paths）
 - 示例见仓库根目录 `data/config.toml.example`；密钥勿提交
 - **安装/卸载**：见 `docs/packaging.md`（NSIS 当前用户安装；卸载可备份 `data/`）
 
@@ -108,13 +108,14 @@ look-translate/
 
 ## 翻译
 
-- 抽象：`Translator` trait；入口 `translate_with_config`
+- 抽象：`Translator` trait；按引擎 id 调用 `translate_with_engine`；多引擎时并行汇总
 - 引擎：`microsoft`（Azure Translator Text API v3）；`microsoft_web`（非官方 Bing 网页，无 Key）；`google`（Cloud Translation API v2 + Key）；`google_web`（非官方 gtx，无 Key）；`cloudflare`（Cloudflare Workers / translate-api）；以及 TOML `[engines.<id>]` Config-driven Profile（见 `docs/adr/0001-config-driven-engines.md`）
-- 语言：设置侧统一 Google 风格（`zh-CN` / `zh-TW`）；读配置兼容旧 `zh-Hans` / `zh-Hant`；微软系引擎内反向映射；`source_lang=auto` 时不传 `from`（Cloudflare 引擎则按 `en`）；默认 `target_lang=zh-CN`
+- 并行：`engine.actives` 列表同时启用；`active` 为列表首项（旧配置仅 `active` 时视为单引擎）；浮层 `results` 分块展示
+- 语言：设置侧统一 Google 风格（`zh-CN` / `zh-TW`）；读配置兼容旧 `zh-Hans` / `zh-Hant`；微软系引擎内反向映射；`source_lang=auto` 时不传 `from`（Cloudflare 引擎按正文脚本猜测源语）；默认 `target_lang=zh-CN`
 - 代理：`follow_system_proxy=true` 时走 reqwest system-proxy；否则 `no_proxy()`
 - 配置：`microsoft_api_key` / `microsoft_region`；`google_api_key`（仅官方 Google）；`cloudflare_endpoint` / `cloudflare_secret`（兼容旧 `self_hosted_*`）；自定义引擎见 `[engines.*]` 与 `docs/engine-profiles.md`
-- 流水线：取词成功后异步翻译；事件 `translation-updated`（loading/ok/error）
-- 命令：`get_last_translation` / `translate_text`
+- 流水线：取词成功后异步翻译；事件 `translation-updated`（loading/ok/error + per-engine results）
+- 命令：`get_last_translation` / `translate_text` / `clear_translation_cache`
 
 ## 浮层
 

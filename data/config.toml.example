@@ -10,6 +10,8 @@ launch_at_startup = true
 
 [engine]
 active = "microsoft"
+# 并行启用多个引擎（可选；省略时等同 actives = [active]）：
+# actives = ["microsoft_web", "google_web", "cloudflare"]
 # microsoft_api_key = "your-key"
 # microsoft_region = "eastasia"  # regional / multi-service resources only
 # google_api_key = "your-google-cloud-translation-v2-key"

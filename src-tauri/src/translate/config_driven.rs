@@ -22,21 +22,26 @@ pub struct ConfigDrivenTranslator {
 impl ConfigDrivenTranslator {
     pub fn from_config(config: &AppConfig, client: Client) -> Result<Self, String> {
         let id = config.engine.active.trim().to_string();
+        Self::from_profile(config, &id, client)
+    }
+
+    pub fn from_profile(
+        config: &AppConfig,
+        engine_id: &str,
+        client: Client,
+    ) -> Result<Self, String> {
+        let id = engine_id.trim().to_string();
         if id.is_empty() {
             return Err("未选择翻译引擎".into());
         }
         if is_builtin_engine(&id) {
             return Err(format!("`{id}` 是内置引擎，不应走 Config-driven 路径"));
         }
-        let profile = config
-            .engines
-            .get(&id)
-            .cloned()
-            .ok_or_else(|| {
-                format!(
-                    "未找到引擎配置 `[engines.{id}]`。请在 data/config.toml 中添加 Engine Profile。"
-                )
-            })?;
+        let profile = config.engines.get(&id).cloned().ok_or_else(|| {
+            format!(
+                "未找到引擎配置 `[engines.{id}]`。请在 data/config.toml 中添加 Engine Profile。"
+            )
+        })?;
         validate_profile(&id, &profile)?;
         Ok(Self {
             id,

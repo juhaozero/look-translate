@@ -1,10 +1,14 @@
+use std::collections::HashMap;
+
+use futures::stream::{FuturesUnordered, StreamExt};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cache::{CacheKey, TranslationCacheState};
 use crate::config::ConfigState;
-use crate::dictionary::{lookup_short_word, DictionaryState};
+use crate::dictionary::{lookup_short_word, DictEntry, DictionaryState};
 use crate::translate::{
-    request_from_config, translate_with_config, TranslationPayload, TranslationState,
+    request_from_config, translate_with_engine, EngineTranslationResult, TranslationPayload,
+    TranslationState,
 };
 
 #[tauri::command]
@@ -20,6 +24,15 @@ pub async fn translate_text(
     target_lang: Option<String>,
 ) -> Result<TranslationPayload, String> {
     run_translate(&app, text, target_lang).await
+}
+
+#[tauri::command]
+pub fn clear_translation_cache(app: AppHandle) -> Result<(), String> {
+    let cache = app
+        .try_state::<TranslationCacheState>()
+        .ok_or_else(|| "translation cache state missing".to_string())?;
+    cache.clear();
+    Ok(())
 }
 
 pub async fn run_translate(
@@ -39,12 +52,7 @@ pub async fn run_translate(
     };
 
     let req = request_from_config(&config, text.clone(), target_lang);
-    let cache_key = CacheKey::new(
-        config.engine.active.clone(),
-        req.source_lang.clone(),
-        req.target_lang.clone(),
-        req.text.clone(),
-    );
+    let actives = config.engine.resolved_actives();
 
     let dict_entry = {
         let data_dir = app
@@ -56,32 +64,102 @@ pub async fn run_translate(
         })
     };
 
-    if let Some(cache) = app.try_state::<TranslationCacheState>() {
-        if let Some(cached) = cache.get(&cache_key) {
-            let payload =
-                TranslationPayload::ok(&text, cached, true).with_dictionary(dict_entry.clone());
-            store_and_emit(app, payload.clone());
-            return Ok(payload);
+    let loading = TranslationPayload::loading(
+        &req.text,
+        &req.source_lang,
+        &req.target_lang,
+        &actives,
+    )
+    .with_dictionary(dict_entry.clone());
+    store_and_emit(app, loading);
+
+    let mut by_engine: HashMap<String, EngineTranslationResult> = HashMap::new();
+    let mut pending: Vec<String> = Vec::new();
+
+    for engine_id in &actives {
+        let key = CacheKey::new(
+            engine_id.clone(),
+            req.source_lang.clone(),
+            req.target_lang.clone(),
+            req.text.clone(),
+        );
+        if let Some(cache) = app.try_state::<TranslationCacheState>() {
+            if let Some(cached) = cache.get(&key) {
+                by_engine.insert(
+                    engine_id.clone(),
+                    EngineTranslationResult::ok(cached, true),
+                );
+                continue;
+            }
+        }
+        pending.push(engine_id.clone());
+    }
+
+    // Show cache hits immediately while others stay in loading.
+    if !by_engine.is_empty() {
+        emit_progress(
+            app,
+            &text,
+            &req.source_lang,
+            &req.target_lang,
+            &actives,
+            &by_engine,
+            dict_entry.clone(),
+        );
+    }
+
+    if !pending.is_empty() {
+        let mut tasks = FuturesUnordered::new();
+        for engine_id in pending {
+            let config = config.clone();
+            let req = req.clone();
+            tasks.push(async move {
+                let outcome = translate_with_engine(&config, &engine_id, req).await;
+                (engine_id, outcome)
+            });
+        }
+
+        while let Some((engine_id, outcome)) = tasks.next().await {
+            match outcome {
+                Ok(result) => {
+                    if let Some(cache) = app.try_state::<TranslationCacheState>() {
+                        let key = CacheKey::new(
+                            engine_id.clone(),
+                            req.source_lang.clone(),
+                            req.target_lang.clone(),
+                            req.text.clone(),
+                        );
+                        cache.put(key, result.clone());
+                    }
+                    by_engine.insert(engine_id, EngineTranslationResult::ok(result, false));
+                }
+                Err(err) => {
+                    by_engine.insert(
+                        engine_id.clone(),
+                        EngineTranslationResult::fail(engine_id, err),
+                    );
+                }
+            }
+            emit_progress(
+                app,
+                &text,
+                &req.source_lang,
+                &req.target_lang,
+                &actives,
+                &by_engine,
+                dict_entry.clone(),
+            );
         }
     }
 
-    let loading = TranslationPayload::loading(&req.text, &req.source_lang, &req.target_lang)
-        .with_dictionary(dict_entry.clone());
-    store_and_emit(app, loading);
-
-    let payload = match translate_with_config(&config, req.clone()).await {
-        Ok(result) => {
-            if let Some(cache) = app.try_state::<TranslationCacheState>() {
-                cache.put(cache_key, result.clone());
-            }
-            TranslationPayload::ok(&text, result, false).with_dictionary(dict_entry)
-        }
-        Err(err) => {
-            // Short-word fallback: still surface dictionary when online translate fails.
-            TranslationPayload::fail(&text, &req.source_lang, &req.target_lang, err)
-                .with_dictionary(dict_entry)
-        }
-    };
+    let payload = build_progress_payload(
+        &text,
+        &req.source_lang,
+        &req.target_lang,
+        &actives,
+        &by_engine,
+        dict_entry,
+    );
     store_and_emit(app, payload.clone());
     Ok(payload)
 }
@@ -91,6 +169,47 @@ pub fn start_translate_after_capture(app: &AppHandle, text: String) {
     tauri::async_runtime::spawn(async move {
         let _ = run_translate(&app_handle, text, None).await;
     });
+}
+
+fn build_progress_payload(
+    text: &str,
+    source_lang: &str,
+    target_lang: &str,
+    actives: &[String],
+    by_engine: &HashMap<String, EngineTranslationResult>,
+    dict_entry: Option<DictEntry>,
+) -> TranslationPayload {
+    let results: Vec<EngineTranslationResult> = actives
+        .iter()
+        .map(|id| {
+            by_engine
+                .get(id)
+                .cloned()
+                .unwrap_or_else(|| EngineTranslationResult::loading(id.clone()))
+        })
+        .collect();
+    TranslationPayload::from_engine_results(text, source_lang, target_lang, results)
+        .with_dictionary(dict_entry)
+}
+
+fn emit_progress(
+    app: &AppHandle,
+    text: &str,
+    source_lang: &str,
+    target_lang: &str,
+    actives: &[String],
+    by_engine: &HashMap<String, EngineTranslationResult>,
+    dict_entry: Option<DictEntry>,
+) {
+    let payload = build_progress_payload(
+        text,
+        source_lang,
+        target_lang,
+        actives,
+        by_engine,
+        dict_entry,
+    );
+    store_and_emit(app, payload);
 }
 
 fn store_and_emit(app: &AppHandle, payload: TranslationPayload) {

@@ -12,12 +12,12 @@ _Avoid_: 插件引擎、官方引擎（易与厂商「官方 API」混淆）
 由配置描述请求/鉴权/响应抽取的通用引擎；加新厂商以改配置为主，不以改宿主代码为主。
 _Avoid_: 插件、脚本引擎、自建网关（那是另一条扩展路径）
 
-**Engine Active**:
-当前唯一生效的翻译引擎标识（同一时间只用一个）。若匹配 Builtin Engine 则走内置实现；否则在命名的 Config-driven 配置中查找。与 Builtin 同名的 Engine Profile 被忽略（Builtin 优先）。
+**Engine Active / Actives**:
+当前启用的翻译引擎标识列表（`engine.actives`）；可同时开启多个，划词时并行请求并在浮层分块展示。`engine.active` 保持为列表首项，兼容旧配置（仅有 `active` 时视为单引擎）。若 id 匹配 Builtin Engine 则走内置实现；否则在命名的 Config-driven 配置中查找。与 Builtin 同名的 Engine Profile 被忽略（Builtin 优先）。
 _Avoid_: 默认引擎（易与出厂默认混淆）
 
 **Engine Profile**:
-一份以 id 命名的 Config-driven 配置（如 `engines.custom`）；用户通过把 Engine Active 设为该 id 来启用。设置页可插入通用 HTTP 骨架、打开配置与填写说明（`docs/engine-profiles.md`，含 DeepL 等厂商示例）；展示名用可选 `label`。
+一份以 id 命名的 Config-driven 配置（如 `engines.custom`）；用户通过把该 id 加入 `engine.actives` 来启用。设置页可插入通用 HTTP 骨架、打开配置与填写说明（`docs/engine-profiles.md`，含 DeepL 等厂商示例）；展示名用可选 `label`。
 _Avoid_: 插件、扩展包、强制绑定某一商业引擎
 
 **Auth Mode**:

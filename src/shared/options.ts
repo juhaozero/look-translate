@@ -1,6 +1,5 @@
 export const TARGET_LANGS = [
   { value: "zh-CN", label: "简体中文" },
-  { value: "zh-TW", label: "繁體中文" },
   { value: "en", label: "English" },
   { value: "ja", label: "日本語" },
   { value: "ko", label: "한국어" },
@@ -47,7 +46,7 @@ export const ENGINES = [
     value: "cloudflare",
     label: "Cloudflare 翻译",
     subtitle: "Workers / translate-api",
-    hint: "兼容 translate-api（Cloudflare Workers + m2m100）：填写 Worker 地址与密钥。源语言为 auto 时按 en 发送。",
+    hint: "兼容 translate-api（Cloudflare Workers + m2m100）：填写 Worker 地址与密钥。源语言为 auto 时按正文脚本猜测（中/日/韩/英）；简繁均映射为 zh。可与其他引擎并行。",
     configurable: true,
   },
 ] as const;
@@ -139,6 +138,31 @@ export function resolveEngineLabel(
     return label;
   }
   return engineId;
+}
+
+/** Engines configured to run in parallel (never empty). */
+export function resolveActives(engine: {
+  active?: string;
+  actives?: string[] | null;
+}): string[] {
+  const fromList = (engine.actives ?? [])
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (fromList.length > 0) {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const id of fromList) {
+      const key = id.toLowerCase();
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      out.push(id);
+    }
+    return out;
+  }
+  const active = (engine.active ?? "").trim() || "microsoft";
+  return [active];
 }
 
 export const OCR_ENGINES = [

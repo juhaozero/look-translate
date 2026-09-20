@@ -68,7 +68,7 @@ impl Translator for CloudflareTranslator {
         }
 
         let target = to_m2m_lang(&req.target_lang)?;
-        let source = to_m2m_source(&req.source_lang);
+        let (source, detected) = resolve_m2m_source(&req.source_lang, req.text.trim());
 
         let mut url = reqwest::Url::parse(&self.endpoint)
             .map_err(|e| format!("Cloudflare 翻译地址无效: {e}"))?;
@@ -130,7 +130,7 @@ impl Translator for CloudflareTranslator {
             text,
             source_lang: req.source_lang.clone(),
             target_lang: normalize_lang_code(&req.target_lang),
-            detected_source_lang: None,
+            detected_source_lang: detected,
         })
     }
 }
@@ -161,13 +161,48 @@ fn to_m2m_lang(code: &str) -> Result<String, String> {
     Ok(mapped)
 }
 
-fn to_m2m_source(code: &str) -> String {
+/// Resolve source language for m2m100. Worker always needs an explicit code;
+/// when the app says `auto`, guess from script (CJK / kana / hangul / latin).
+fn resolve_m2m_source(code: &str, text: &str) -> (String, Option<String>) {
     let normalized = normalize_lang_code(code);
     if normalized.is_empty() || normalized.eq_ignore_ascii_case("auto") {
-        // Worker requires a source_lang; default to English for auto.
-        return "en".into();
+        let guessed = guess_source_lang(text).to_string();
+        return (guessed.clone(), Some(guessed));
     }
-    to_m2m_lang(&normalized).unwrap_or_else(|_| "en".into())
+    let mapped = to_m2m_lang(&normalized).unwrap_or_else(|_| guess_source_lang(text).into());
+    (mapped, None)
+}
+
+/// Lightweight script heuristic — enough for 中↔英 / 日 / 韩划词场景.
+fn guess_source_lang(text: &str) -> &'static str {
+    let mut cjk = 0usize;
+    let mut kana = 0usize;
+    let mut hangul = 0usize;
+    let mut latin = 0usize;
+
+    for ch in text.chars() {
+        match ch {
+            '\u{3040}'..='\u{30FF}' | '\u{31F0}'..='\u{31FF}' => kana += 1,
+            '\u{AC00}'..='\u{D7AF}' | '\u{1100}'..='\u{11FF}' => hangul += 1,
+            '\u{4E00}'..='\u{9FFF}' | '\u{3400}'..='\u{4DBF}' | '\u{F900}'..='\u{FAFF}' => {
+                cjk += 1
+            }
+            'A'..='Z' | 'a'..='z' => latin += 1,
+            _ => {}
+        }
+    }
+
+    // Kana / Hangul beat Han: Japanese often mixes kanji with kana.
+    if kana > 0 {
+        return "ja";
+    }
+    if hangul > 0 {
+        return "ko";
+    }
+    if cjk > 0 && cjk >= latin {
+        return "zh";
+    }
+    "en"
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -191,8 +226,25 @@ mod tests {
     }
 
     #[test]
-    fn auto_source_defaults_to_en() {
-        assert_eq!(to_m2m_source("auto"), "en");
-        assert_eq!(to_m2m_source(""), "en");
+    fn auto_source_guesses_from_script() {
+        let (src, detected) = resolve_m2m_source("auto", "你好世界");
+        assert_eq!(src, "zh");
+        assert_eq!(detected.as_deref(), Some("zh"));
+
+        let (src, _) = resolve_m2m_source("auto", "Hello world");
+        assert_eq!(src, "en");
+
+        let (src, _) = resolve_m2m_source("auto", "こんにちは");
+        assert_eq!(src, "ja");
+
+        let (src, _) = resolve_m2m_source("auto", "안녕하세요");
+        assert_eq!(src, "ko");
+    }
+
+    #[test]
+    fn explicit_source_is_kept() {
+        let (src, detected) = resolve_m2m_source("zh-CN", "Hello");
+        assert_eq!(src, "zh");
+        assert!(detected.is_none());
     }
 }

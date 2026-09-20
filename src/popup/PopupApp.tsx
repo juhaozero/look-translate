@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { AppConfig, CapturePayload, TranslationPayload } from "../shared/types";
@@ -12,10 +12,12 @@ export function PopupApp() {
     null,
   );
   const [targetLang, setTargetLang] = useState("zh-CN");
-  const [copyStatus, setCopyStatus] = useState("");
+  const [copiedEngine, setCopiedEngine] = useState<string | null>(null);
   const [engineProfiles, setEngineProfiles] = useState<AppConfig["engines"]>(
     {},
   );
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const copyTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     invoke<AppConfig>("get_config")
@@ -51,7 +53,7 @@ export function PopupApp() {
     listen<CapturePayload>("capture-updated", (event) => {
       setCapture(event.payload);
       setTranslation(null);
-      setCopyStatus("");
+      setCopiedEngine(null);
     })
       .then((fn) => unlisteners.push(fn))
       .catch(console.error);
@@ -68,6 +70,9 @@ export function PopupApp() {
     return () => {
       for (const unlisten of unlisteners) {
         unlisten();
+      }
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
       }
     };
   }, []);
@@ -90,18 +95,47 @@ export function PopupApp() {
       ? capture.text
       : translation?.sourceText;
   const canTranslate = Boolean(sourceText && sourceText.trim());
-  const translatedText =
-    captureFailed || translation?.status !== "ok"
-      ? ""
-      : (translation?.translatedText ?? "");
+  const engineResults = translation?.results ?? [];
+  const translatedText = captureFailed
+    ? ""
+    : (translation?.translatedText ?? "");
   const isOcr = capture?.source === "ocr";
-  const isLoading = !captureFailed && translation?.status === "loading";
+  const isLoading =
+    !captureFailed &&
+    (translation?.status === "loading" ||
+      engineResults.some((item) => item.status === "loading"));
+  const showEngineResults = !captureFailed && engineResults.length > 0;
+  const showLegacyResult =
+    !captureFailed &&
+    !showEngineResults &&
+    Boolean(translatedText);
+
+  // Auto-scroll as progressive results arrive / content grows.
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) {
+      return;
+    }
+    const loadingEl = body.querySelector(
+      ".popup-result.is-loading",
+    ) as HTMLElement | null;
+    const target =
+      loadingEl ??
+      (body.querySelector(
+        ".popup-result:last-of-type",
+      ) as HTMLElement | null);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } else {
+      body.scrollTo({ top: body.scrollHeight, behavior: "smooth" });
+    }
+  }, [engineResults, translation?.dictionaryText, translation?.status]);
 
   async function runTranslate(nextTarget: string) {
     if (!sourceText?.trim()) {
       return;
     }
-    setCopyStatus("");
+    setCopiedEngine(null);
     try {
       await invoke<TranslationPayload>("translate_text", {
         text: sourceText,
@@ -117,17 +151,35 @@ export function PopupApp() {
     await runTranslate(next);
   }
 
-  async function copyTranslation() {
-    if (!translatedText) {
+  async function copyEngineText(engineId: string, text: string) {
+    if (!text.trim()) {
       return;
     }
     try {
-      await invoke("copy_text", { text: translatedText });
-      setCopyStatus("已复制");
-      window.setTimeout(() => setCopyStatus(""), 1500);
+      await invoke("copy_text", { text });
+      setCopiedEngine(engineId);
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+      copyTimerRef.current = window.setTimeout(() => {
+        setCopiedEngine(null);
+        copyTimerRef.current = null;
+      }, 1500);
     } catch (error) {
       console.error(error);
-      setCopyStatus("复制失败");
+      setCopiedEngine(`error:${engineId}`);
+    }
+  }
+
+  async function clearCache() {
+    setCopiedEngine(null);
+    try {
+      await invoke("clear_translation_cache");
+      if (sourceText?.trim()) {
+        await runTranslate(targetLang);
+      }
+    } catch (error) {
+      console.error(error);
     }
   }
 
@@ -170,104 +222,191 @@ export function PopupApp() {
         </label>
         <button
           type="button"
-          className="popup-btn popup-btn-primary"
-          disabled={!translatedText || translation?.status !== "ok"}
-          onClick={() => void copyTranslation()}
+          className="popup-btn"
+          title="清空翻译缓存并重新翻译"
+          disabled={isLoading}
+          onClick={() => void clearCache()}
         >
-          {copyStatus || "复制译文"}
+          清空缓存
         </button>
       </div>
 
-      {capture?.error ? (
-        <p className="popup-error" role="alert">
-          {capture.error}
-        </p>
-      ) : null}
+      <div className="popup-body" ref={bodyRef}>
+        {capture?.error ? (
+          <p className="popup-error" role="alert">
+            {capture.error}
+          </p>
+        ) : null}
 
-      {sourceText ? (
-        <section className="popup-block popup-source">
-          <div className="popup-block-head">
-            <h2>原文</h2>
+        {sourceText ? (
+          <section className="popup-block popup-source">
+            <div className="popup-block-head">
+              <h2>原文</h2>
+            </div>
+            <p>{sourceText}</p>
+          </section>
+        ) : (
+          <div className="popup-empty">
+            <p>选中文本后按划词热键</p>
+            <span>或将指针移到文字上按 OCR 热键。Esc / 点外部可关闭。</span>
           </div>
-          <p>{sourceText}</p>
-        </section>
-      ) : (
-        <div className="popup-empty">
-          <p>选中文本后按划词热键</p>
-          <span>或将指针移到文字上按 OCR 热键。Esc / 点外部可关闭。</span>
-        </div>
-      )}
+        )}
 
-      {isLoading ? (
-        <section className="popup-block popup-skeleton" aria-live="polite">
-          <div className="popup-block-head">
-            <h2>译文</h2>
-            <span className="popup-chip">翻译中</span>
-          </div>
-          <div className="popup-skeleton-lines">
-            <span />
-            <span />
-            <span />
-          </div>
-        </section>
-      ) : null}
+        {showEngineResults
+          ? engineResults.map((item) => {
+              const copyKey = item.engine;
+              const copied = copiedEngine === copyKey;
+              const copyFailed = copiedEngine === `error:${copyKey}`;
+              return (
+                <section
+                  key={item.engine}
+                  className={
+                    item.status === "error"
+                      ? "popup-block popup-result is-error"
+                      : item.status === "loading"
+                        ? "popup-block popup-result is-loading"
+                        : "popup-block popup-result"
+                  }
+                  aria-busy={item.status === "loading" ? true : undefined}
+                >
+                  <div className="popup-block-head">
+                    <h2>译文</h2>
+                    <div className="popup-meta">
+                      <span className="popup-chip popup-chip-engine">
+                        <EngineIcon engine={item.engine} size="sm" />
+                        <span>
+                          {resolveEngineLabel(item.engine, engineProfiles)}
+                        </span>
+                      </span>
+                      {item.detectedSourceLang ? (
+                        <span className="popup-chip">
+                          检测 {item.detectedSourceLang}
+                        </span>
+                      ) : null}
+                      {item.cached ? (
+                        <span className="popup-chip is-soft">缓存</span>
+                      ) : null}
+                      {item.status === "loading" ? (
+                        <span className="popup-chip is-loading">
+                          <span className="popup-spinner" aria-hidden="true" />
+                          翻译中
+                        </span>
+                      ) : null}
+                      {item.status === "error" ? (
+                        <span className="popup-chip is-error">失败</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  {item.status === "ok" && item.text ? (
+                    <>
+                      <p>{item.text}</p>
+                      <div className="popup-result-actions">
+                        <button
+                          type="button"
+                          className="popup-btn popup-btn-copy"
+                          onClick={() =>
+                            void copyEngineText(item.engine, item.text ?? "")
+                          }
+                        >
+                          {copied
+                            ? "已复制"
+                            : copyFailed
+                              ? "复制失败"
+                              : "复制"}
+                        </button>
+                      </div>
+                    </>
+                  ) : item.status === "loading" ? (
+                    <div className="popup-skeleton-lines" aria-label="翻译中">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                  ) : (
+                    <p className="popup-result-error">
+                      {item.error || "翻译失败"}
+                    </p>
+                  )}
+                </section>
+              );
+            })
+          : null}
 
-      {translation?.status === "ok" && translatedText ? (
-        <section className="popup-block popup-result">
-          <div className="popup-block-head">
-            <h2>译文</h2>
-            <div className="popup-meta">
-              {translation.engine ? (
-                <span className="popup-chip popup-chip-engine">
-                  <EngineIcon engine={translation.engine} size="sm" />
-                  <span>
-                    {resolveEngineLabel(
-                      translation.engine,
-                      engineProfiles,
-                    )}
+        {showLegacyResult ? (
+          <section className="popup-block popup-result">
+            <div className="popup-block-head">
+              <h2>译文</h2>
+              <div className="popup-meta">
+                {translation?.engine ? (
+                  <span className="popup-chip popup-chip-engine">
+                    <EngineIcon engine={translation.engine} size="sm" />
+                    <span>
+                      {resolveEngineLabel(
+                        translation.engine,
+                        engineProfiles,
+                      )}
+                    </span>
                   </span>
+                ) : null}
+                {translation?.detectedSourceLang ? (
+                  <span className="popup-chip">
+                    检测 {translation.detectedSourceLang}
+                  </span>
+                ) : null}
+                {translation?.cached ? (
+                  <span className="popup-chip is-soft">缓存</span>
+                ) : null}
+              </div>
+            </div>
+            <p>{translatedText}</p>
+            <div className="popup-result-actions">
+              <button
+                type="button"
+                className="popup-btn popup-btn-copy"
+                onClick={() =>
+                  void copyEngineText(
+                    translation?.engine ?? "legacy",
+                    translatedText,
+                  )
+                }
+              >
+                {copiedEngine === (translation?.engine ?? "legacy")
+                  ? "已复制"
+                  : "复制"}
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        {translation?.status === "error" &&
+        translation.error &&
+        engineResults.length === 0 ? (
+          <div className="popup-translate-error" role="alert">
+            <p className="popup-error">{translation.error}</p>
+            <button
+              type="button"
+              className="popup-btn"
+              onClick={() => void runTranslate(targetLang)}
+            >
+              重试
+            </button>
+          </div>
+        ) : null}
+
+        {translation?.dictionaryText && !captureFailed ? (
+          <section className="popup-block popup-dict">
+            <div className="popup-block-head">
+              <h2>词典</h2>
+              {translation.dictionarySource ? (
+                <span className="popup-chip is-soft">
+                  {translation.dictionarySource}
                 </span>
-              ) : null}
-              {translation.detectedSourceLang ? (
-                <span className="popup-chip">
-                  检测 {translation.detectedSourceLang}
-                </span>
-              ) : null}
-              {translation.cached ? (
-                <span className="popup-chip is-soft">缓存</span>
               ) : null}
             </div>
-          </div>
-          <p>{translatedText}</p>
-        </section>
-      ) : null}
-
-      {translation?.status === "error" && translation.error ? (
-        <div className="popup-translate-error" role="alert">
-          <p className="popup-error">{translation.error}</p>
-          <button
-            type="button"
-            className="popup-btn"
-            onClick={() => void runTranslate(targetLang)}
-          >
-            重试
-          </button>
-        </div>
-      ) : null}
-
-      {translation?.dictionaryText && !captureFailed ? (
-        <section className="popup-block popup-dict">
-          <div className="popup-block-head">
-            <h2>词典</h2>
-            {translation.dictionarySource ? (
-              <span className="popup-chip is-soft">
-                {translation.dictionarySource}
-              </span>
-            ) : null}
-          </div>
-          <p>{translation.dictionaryText}</p>
-        </section>
-      ) : null}
+            <p>{translation.dictionaryText}</p>
+          </section>
+        ) : null}
+      </div>
     </main>
   );
 }

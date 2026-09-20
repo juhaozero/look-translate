@@ -78,7 +78,6 @@ impl TranslationCache {
         self.inner.len()
     }
 
-    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.inner.clear();
     }
@@ -112,6 +111,12 @@ impl TranslationCacheState {
     pub fn put(&self, key: CacheKey, value: TranslationResult) {
         if let Ok(mut guard) = self.cache.lock() {
             guard.put(key, value);
+        }
+    }
+
+    pub fn clear(&self) {
+        if let Ok(mut guard) = self.cache.lock() {
+            guard.clear();
         }
     }
 }

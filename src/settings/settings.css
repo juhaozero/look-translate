@@ -773,6 +773,14 @@
   color: var(--lt-muted, #64748b);
 }
 
+.service-section-hint {
+  margin: -4px 0 12px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--lt-muted, #64748b);
+}
+
 .service-list {
   list-style: none;
   margin: 0;
