@@ -86,10 +86,11 @@ hotkey_ocr = "Ctrl+Shift+S"
 actives = ["microsoft_web", "google_web"]
 active = "microsoft_web"
 
-# Cloudflare Workers（translate-api 兼容）示例：
+# Cloudflare Workers（本仓库 work.js）：
 # actives = ["cloudflare"]
 # cloudflare_endpoint = "https://your-worker.workers.dev/"
-# cloudflare_secret = "your-secret"
+# cloudflare_secret = "your-secret"   # 与 wrangler secret put SECRET_PASS 一致
+# 客户端：POST JSON + Authorization: Bearer <secret>（勿把密钥写进 Worker 源码）
 ```
 
 自定义厂商（如 DeepL）可通过 `[engines.<id>]` 配置驱动接入，说明见 `[docs/engine-profiles.md](docs/engine-profiles.md)`。

@@ -44,10 +44,18 @@ export type EngineTranslationResult = {
   detectedSourceLang?: string | null;
 };
 
+/**
+ * Translation update payload.
+ * `results` is the source of truth (ordered like `engine.actives`).
+ * Top-level `status` / `translatedText` / `engine` / `cached` / `error` are
+ * derived summaries for convenience (first ok / overall status).
+ */
 export type TranslationPayload = {
   status: "loading" | "ok" | "error" | string;
   sourceText: string;
+  /** Derived from first ok entry in `results`. */
   translatedText?: string | null;
+  /** Derived from first ok entry in `results`. */
   engine?: string | null;
   sourceLang: string;
   targetLang: string;
@@ -56,8 +64,17 @@ export type TranslationPayload = {
   cached?: boolean;
   dictionaryText?: string | null;
   dictionarySource?: string | null;
-  /** Per-engine results when multiple services run in parallel. */
-  results?: EngineTranslationResult[];
+  /** Per-engine progressive results — always present for new translates. */
+  results: EngineTranslationResult[];
+};
+
+export type EngineCatalogItem = {
+  id: string;
+  label: string;
+  subtitle: string;
+  hint: string;
+  configurable: boolean;
+  kind: "builtin" | "profile" | string;
 };
 
 export type InstallRecommendedDictResult = {

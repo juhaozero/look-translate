@@ -96,19 +96,12 @@ export function PopupApp() {
       : translation?.sourceText;
   const canTranslate = Boolean(sourceText && sourceText.trim());
   const engineResults = translation?.results ?? [];
-  const translatedText = captureFailed
-    ? ""
-    : (translation?.translatedText ?? "");
   const isOcr = capture?.source === "ocr";
   const isLoading =
     !captureFailed &&
     (translation?.status === "loading" ||
       engineResults.some((item) => item.status === "loading"));
   const showEngineResults = !captureFailed && engineResults.length > 0;
-  const showLegacyResult =
-    !captureFailed &&
-    !showEngineResults &&
-    Boolean(translatedText);
 
   // Auto-scroll as progressive results arrive / content grows.
   useEffect(() => {
@@ -331,52 +324,6 @@ export function PopupApp() {
               );
             })
           : null}
-
-        {showLegacyResult ? (
-          <section className="popup-block popup-result">
-            <div className="popup-block-head">
-              <h2>译文</h2>
-              <div className="popup-meta">
-                {translation?.engine ? (
-                  <span className="popup-chip popup-chip-engine">
-                    <EngineIcon engine={translation.engine} size="sm" />
-                    <span>
-                      {resolveEngineLabel(
-                        translation.engine,
-                        engineProfiles,
-                      )}
-                    </span>
-                  </span>
-                ) : null}
-                {translation?.detectedSourceLang ? (
-                  <span className="popup-chip">
-                    检测 {translation.detectedSourceLang}
-                  </span>
-                ) : null}
-                {translation?.cached ? (
-                  <span className="popup-chip is-soft">缓存</span>
-                ) : null}
-              </div>
-            </div>
-            <p>{translatedText}</p>
-            <div className="popup-result-actions">
-              <button
-                type="button"
-                className="popup-btn popup-btn-copy"
-                onClick={() =>
-                  void copyEngineText(
-                    translation?.engine ?? "legacy",
-                    translatedText,
-                  )
-                }
-              >
-                {copiedEngine === (translation?.engine ?? "legacy")
-                  ? "已复制"
-                  : "复制"}
-              </button>
-            </div>
-          </section>
-        ) : null}
 
         {translation?.status === "error" &&
         translation.error &&

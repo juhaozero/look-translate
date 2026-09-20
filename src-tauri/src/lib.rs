@@ -58,6 +58,7 @@ pub fn run() {
             commands::capture_cmd::cancel_ocr_select,
             commands::capture_cmd::submit_ocr_text,
             commands::translate_cmd::get_last_translation,
+            commands::translate_cmd::list_engines,
             commands::translate_cmd::translate_text,
             commands::translate_cmd::clear_translation_cache,
         ])

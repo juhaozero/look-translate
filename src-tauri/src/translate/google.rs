@@ -8,7 +8,7 @@ use serde_json::Value;
 use crate::config::AppConfig;
 use crate::lang::normalize_lang_code;
 
-use super::{TranslationRequest, TranslationResult, Translator};
+use super::{credentials::BuiltinCredentials, TranslationRequest, TranslationResult, Translator};
 
 const CLOUD_V2_ENDPOINT: &str = "https://translation.googleapis.com/language/translate/v2";
 const GTX_ENDPOINT: &str = "https://translate.googleapis.com/translate_a/single";
@@ -19,16 +19,17 @@ pub struct GoogleCloudTranslator {
 }
 
 impl GoogleCloudTranslator {
-    pub fn from_config(config: &AppConfig, client: Client) -> Result<Self, String> {
-        let api_key = config
-            .engine
+    pub fn from_credentials(creds: &BuiltinCredentials, client: Client) -> Result<Self, String> {
+        let api_key = creds
             .google_api_key
-            .as_ref()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
+            .clone()
             .ok_or_else(|| "未配置 Google API Key，请在设置中填写后重试".to_string())?;
 
         Ok(Self { client, api_key })
+    }
+
+    pub fn from_config(config: &AppConfig, client: Client) -> Result<Self, String> {
+        Self::from_credentials(&BuiltinCredentials::from_engine_config(&config.engine), client)
     }
 }
 
