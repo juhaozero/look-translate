@@ -1,9 +1,11 @@
 import type { EngineId } from "./options";
 import { BUILTIN_ENGINE_IDS } from "./options";
+import baiduIcon from "../assets/brands/baidu.png";
 import bingIcon from "../assets/brands/bing.png";
 import cloudflareIcon from "../assets/brands/cloudflare.png";
 import googleIcon from "../assets/brands/google.png";
 import microsoftIcon from "../assets/brands/microsoft.png";
+import youdaoIcon from "../assets/brands/youdao.png";
 
 type IconProps = {
   className?: string;
@@ -25,6 +27,10 @@ function resolveBrandSrc(engine: string): string | null {
       return googleIcon;
     case "cloudflare":
       return cloudflareIcon;
+    case "baidu":
+      return baiduIcon;
+    case "youdao":
+      return youdaoIcon;
     default:
       return null;
   }
