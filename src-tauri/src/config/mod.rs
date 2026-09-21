@@ -21,6 +21,8 @@ pub const BUILTIN_ENGINE_IDS: &[&str] = &[
     "google",
     "google_web",
     "cloudflare",
+    "baidu",
+    "youdao",
 ];
 
 pub fn is_builtin_engine(id: &str) -> bool {
@@ -132,6 +134,18 @@ pub struct EngineConfig {
         skip_serializing_if = "Option::is_none"
     )]
     pub cloudflare_secret: Option<String>,
+    /// Baidu Translate open platform App ID.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baidu_app_id: Option<String>,
+    /// Baidu Translate open platform secret key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub baidu_secret: Option<String>,
+    /// Youdao Zhiyun application ID (appKey).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub youdao_app_key: Option<String>,
+    /// Youdao Zhiyun application secret.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub youdao_app_secret: Option<String>,
 }
 
 impl Default for EngineConfig {
@@ -144,6 +158,10 @@ impl Default for EngineConfig {
             google_api_key: None,
             cloudflare_endpoint: None,
             cloudflare_secret: None,
+            baidu_app_id: None,
+            baidu_secret: None,
+            youdao_app_key: None,
+            youdao_app_secret: None,
         }
     }
 }

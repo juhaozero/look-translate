@@ -237,6 +237,94 @@ export function ServicePanel({
                     </label>
                   </div>
                 ) : null}
+                {expanded && engine.value === "baidu" ? (
+                  <div className="service-card-editor">
+                    <p className="service-card-editor-hint">
+                      {engine.hint}
+                    </p>
+                    <label className="service-field">
+                      <span>App ID</span>
+                      <input
+                        className="settings-input"
+                        autoComplete="off"
+                        placeholder="百度翻译开放平台 App ID"
+                        value={config.engine.baidu_app_id ?? ""}
+                        onChange={(event) =>
+                          setConfig({
+                            ...config,
+                            engine: {
+                              ...config.engine,
+                              baidu_app_id: event.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="service-field">
+                      <span>密钥</span>
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        className="settings-input"
+                        placeholder="百度翻译开放平台密钥"
+                        value={config.engine.baidu_secret ?? ""}
+                        onChange={(event) =>
+                          setConfig({
+                            ...config,
+                            engine: {
+                              ...config.engine,
+                              baidu_secret: event.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : null}
+                {expanded && engine.value === "youdao" ? (
+                  <div className="service-card-editor">
+                    <p className="service-card-editor-hint">
+                      {engine.hint}
+                    </p>
+                    <label className="service-field">
+                      <span>应用 ID</span>
+                      <input
+                        className="settings-input"
+                        autoComplete="off"
+                        placeholder="有道智云应用 ID（appKey）"
+                        value={config.engine.youdao_app_key ?? ""}
+                        onChange={(event) =>
+                          setConfig({
+                            ...config,
+                            engine: {
+                              ...config.engine,
+                              youdao_app_key: event.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="service-field">
+                      <span>应用密钥</span>
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        className="settings-input"
+                        placeholder="有道智云应用密钥"
+                        value={config.engine.youdao_app_secret ?? ""}
+                        onChange={(event) =>
+                          setConfig({
+                            ...config,
+                            engine: {
+                              ...config.engine,
+                              youdao_app_secret: event.target.value,
+                            },
+                          })
+                        }
+                      />
+                    </label>
+                  </div>
+                ) : null}
               </li>
             );
           })}

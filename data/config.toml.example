@@ -23,6 +23,16 @@ active = "microsoft"
 # cloudflare_endpoint = "https://your-worker.workers.dev/"
 # cloudflare_secret = "123456"
 #
+# Baidu Translate open platform (通用翻译 API):
+# active = "baidu"
+# baidu_app_id = "your-app-id"
+# baidu_secret = "your-secret"
+#
+# Youdao Zhiyun text translation:
+# active = "youdao"
+# youdao_app_key = "your-app-key"
+# youdao_app_secret = "your-app-secret"
+#
 # Config-driven engines: settings can insert [engines.custom], or copy samples from
 # docs/engine-profiles.md (includes a full DeepL example).
 # active = "custom"

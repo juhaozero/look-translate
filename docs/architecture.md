@@ -74,7 +74,7 @@ look-translate/
 - **路径**：`{executable_dir}/data/config.toml`（开发时即 `src-tauri/target/debug/data/`）
 - **启动**：目录不存在则创建；文件不存在则写入默认配置
 - **命令**：`get_app_paths` / `get_config` / `save_config`
-- **字段**：`general`（语言/热键/代理）、`engine`（`actives` 并行列表 + `active` 首项兼容 + microsoft_* / google_* / cloudflare_*）、`dictionary`（enabled + paths）
+- **字段**：`general`（语言/热键/代理）、`engine`（`actives` 并行列表 + `active` 首项兼容 + microsoft_* / google_* / cloudflare_* / baidu_* / youdao_*）、`dictionary`（enabled + paths）
 - 示例见仓库根目录 `data/config.toml.example`；密钥勿提交
 - **安装/卸载**：见 `docs/packaging.md`（NSIS 当前用户安装；卸载可备份 `data/`）
 
@@ -111,11 +111,11 @@ look-translate/
 - 抽象：`Translator` trait；`registry::resolve_translator` 解析 Builtin / Profile；多引擎时由 `translate::pipeline::run_parallel` 并行汇总（渐进进度经回调上抛）
 - 引擎目录：`list_engines` / `list_engine_catalog` 为 Builtin 元数据 + Profile 列表的 SSOT；设置页优先用该目录
 - 凭证：TOML 仍为扁平字段；运行时经 `BuiltinCredentials` 归一后再交给各 Builtin adapter
-- 引擎：`microsoft`（Azure Translator Text API v3）；`microsoft_web`（非官方 Bing 网页，无 Key）；`google`（Cloud Translation API v2 + Key）；`google_web`（非官方 gtx，无 Key）；`cloudflare`（Cloudflare Workers / translate-api）；以及 TOML `[engines.<id>]` Config-driven Profile（见 `docs/adr/0001-config-driven-engines.md`）
+- 引擎：`microsoft`（Azure Translator Text API v3）；`microsoft_web`（非官方 Bing 网页，无 Key）；`google`（Cloud Translation API v2 + Key）；`google_web`（非官方 gtx，无 Key）；`cloudflare`（Cloudflare Workers / translate-api）；`baidu`（百度通用翻译 API + App ID/密钥）；`youdao`（有道智云文本翻译 + 应用 ID/密钥）；以及 TOML `[engines.<id>]` Config-driven Profile（见 `docs/adr/0001-config-driven-engines.md`、签名类例外见 `docs/adr/0002-builtin-for-signed-apis.md`）
 - 并行：`engine.actives` 列表同时启用；`active` 为列表首项（旧配置仅 `active` 时视为单引擎）；浮层以 `results` 为唯一真相分块展示（顶栏字段为派生摘要）
-- 语言：设置侧统一 Google 风格（`zh-CN` / `zh-TW`）；读配置兼容旧 `zh-Hans` / `zh-Hant`；微软系引擎内反向映射；`source_lang=auto` 时不传 `from`（Cloudflare 引擎按正文脚本猜测源语）；默认 `target_lang=zh-CN`
+- 语言：设置侧统一 Google 风格（`zh-CN` / `zh-TW`）；读配置兼容旧 `zh-Hans` / `zh-Hant`；微软系 / 百度 / 有道引擎内反向映射；`source_lang=auto` 时不传 `from`（Cloudflare 引擎按正文脚本猜测源语）；默认 `target_lang=zh-CN`
 - 代理：`follow_system_proxy=true` 时走 reqwest system-proxy；否则 `no_proxy()`
-- 配置：`microsoft_api_key` / `microsoft_region`；`google_api_key`（仅官方 Google）；`cloudflare_endpoint` / `cloudflare_secret`（兼容旧 `self_hosted_*`）；自定义引擎见 `[engines.*]` 与 `docs/engine-profiles.md`
+- 配置：`microsoft_api_key` / `microsoft_region`；`google_api_key`（仅官方 Google）；`cloudflare_endpoint` / `cloudflare_secret`（兼容旧 `self_hosted_*`）；`baidu_app_id` / `baidu_secret`；`youdao_app_key` / `youdao_app_secret`；自定义引擎见 `[engines.*]` 与 `docs/engine-profiles.md`
 - 流水线：取词成功后异步翻译；`commands/translate_cmd` 只负责读配置/词典、调用 pipeline、store + `translation-updated`
 - 命令：`get_last_translation` / `list_engines` / `translate_text` / `clear_translation_cache`
 
@@ -147,7 +147,7 @@ look-translate/
 - Shell：`SettingsApp`（加载 / 脏检查 / 防抖自动保存 / 导航）
 - 面板：`panels/*`（常规、翻译、热键、服务、词典、关于）
 - 引擎列表优先 `list_engines`（Rust catalog SSOT），失败时回退本地 `buildEngineList`
-- 语言与引擎用下拉；Microsoft / Google / Cloudflare Key 条件展示
+- 语言与引擎用下拉；Microsoft / Google / Cloudflare / 百度 / 有道 Key 条件展示
 - 词典：安装推荐 ECDICT、选择 `.mdx` / 文件夹（`tauri-plugin-dialog`）
 - Profile：开配置 / 重载 / 插通用 HTTP 模板（符合 ADR 0001）
 - 数据位置展示便携路径，并提示 NSIS 卸载备份策略

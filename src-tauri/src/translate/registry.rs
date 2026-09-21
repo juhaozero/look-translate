@@ -5,12 +5,14 @@ use serde::Serialize;
 
 use crate::config::{is_builtin_engine, AppConfig, EngineProfile};
 
+use super::baidu::BaiduTranslator;
 use super::cloudflare::CloudflareTranslator;
 use super::config_driven::ConfigDrivenTranslator;
 use super::credentials::BuiltinCredentials;
 use super::google::{GoogleCloudTranslator, GoogleWebTranslator};
 use super::microsoft::MicrosoftTranslator;
 use super::microsoft_web::MicrosoftWebTranslator;
+use super::youdao::YoudaoTranslator;
 use super::Translator;
 
 /// Static metadata for one Builtin Engine (settings / catalog SSOT).
@@ -57,6 +59,20 @@ pub const BUILTIN_ENGINES: &[BuiltinEngineMeta] = &[
         label: "Cloudflare 翻译",
         subtitle: "Workers / translate-api",
         hint: "兼容本仓库 work.js Worker：POST JSON + Authorization Bearer；密钥用 wrangler secret put SECRET_PASS，勿写进源码。源语言为 auto 时按正文脚本猜测（中/日/韩/英）；简繁均映射为 zh。",
+        configurable: true,
+    },
+    BuiltinEngineMeta {
+        id: "baidu",
+        label: "百度翻译",
+        subtitle: "开放平台，需 App ID",
+        hint: "需填写百度翻译开放平台 App ID 与密钥（通用翻译 API）",
+        configurable: true,
+    },
+    BuiltinEngineMeta {
+        id: "youdao",
+        label: "有道翻译",
+        subtitle: "智云，需应用密钥",
+        hint: "需填写有道智云应用 ID（appKey）与应用密钥（文本翻译 API）",
         configurable: true,
     },
 ];
@@ -138,11 +154,17 @@ pub fn resolve_translator(
         "cloudflare" => Ok(Box::new(CloudflareTranslator::from_credentials(
             &creds, client,
         )?)),
+        "baidu" => Ok(Box::new(BaiduTranslator::from_credentials(
+            &creds, client,
+        )?)),
+        "youdao" => Ok(Box::new(YoudaoTranslator::from_credentials(
+            &creds, client,
+        )?)),
         other if !other.is_empty() && !is_builtin_engine(other) => Ok(Box::new(
             ConfigDrivenTranslator::from_profile(config, other, client)?,
         )),
         other => Err(format!(
-            "未知翻译引擎 `{other}`（内置：microsoft / microsoft_web / google / google_web / cloudflare；或配置 `[engines.<id>]`）"
+            "未知翻译引擎 `{other}`（内置：microsoft / microsoft_web / google / google_web / cloudflare / baidu / youdao；或配置 `[engines.<id>]`）"
         )),
     }
 }

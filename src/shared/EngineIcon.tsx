@@ -42,6 +42,10 @@ function resolveBrandLabel(engine: string): string {
       return "Google 网页";
     case "cloudflare":
       return "Cloudflare";
+    case "baidu":
+      return "百度翻译";
+    case "youdao":
+      return "有道翻译";
     case "system":
       return "系统 OCR";
     case "tesseract":

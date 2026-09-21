@@ -20,7 +20,7 @@ toml = "0.8"
 arboard = "3.6.1"
 enigo = "0.6.1"
 async-trait = "0.1.92"
-reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "socks", "system-proxy", "charset"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "socks", "system-proxy", "charset", "form"] }
 lru = "0.12"
 mdict-rs = { version = "0.1.4", features = ["lzo"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
@@ -30,6 +30,9 @@ image = { version = "0.25", default-features = false, features = ["png"] }
 base64 = "0.22"
 url = "2"
 futures = { version = "0.3.34", default-features = false, features = ["std"] }
+md-5 = "0.11.0"
+sha2 = "0.11.0"
+hex = "0.4.3"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [

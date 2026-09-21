@@ -38,6 +38,10 @@ export function normalizeConfig(config: AppConfig): AppConfig {
         config.engine.cloudflare_endpoint,
       ),
       cloudflare_secret: normalizeOptionalKey(config.engine.cloudflare_secret),
+      baidu_app_id: normalizeOptionalKey(config.engine.baidu_app_id),
+      baidu_secret: normalizeOptionalKey(config.engine.baidu_secret),
+      youdao_app_key: normalizeOptionalKey(config.engine.youdao_app_key),
+      youdao_app_secret: normalizeOptionalKey(config.engine.youdao_app_secret),
     },
     engines: config.engines ?? {},
     ocr: {

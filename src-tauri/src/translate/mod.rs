@@ -1,5 +1,6 @@
 //! Translator trait and engine implementations.
 
+mod baidu;
 mod cloudflare;
 mod config_driven;
 mod credentials;
@@ -9,6 +10,7 @@ mod microsoft_web;
 mod pipeline;
 mod registry;
 mod state;
+mod youdao;
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};

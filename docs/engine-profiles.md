@@ -9,7 +9,7 @@
 2. **打开配置文件**，按下方字段说明填写
 3. **重新加载配置**，打开该引擎开关
 
-也可直接复制本文「完整示例」到 `config.toml`，把 `custom` 改成任意 id（勿与内置引擎同名：`microsoft` / `google` / `cloudflare` 等）。
+也可直接复制本文「完整示例」到 `config.toml`，把 `custom` 改成任意 id（勿与内置引擎同名：`microsoft` / `google` / `cloudflare` / `baidu` / `youdao` 等）。
 
 ## 字段说明
 

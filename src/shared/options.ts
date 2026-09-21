@@ -49,6 +49,20 @@ export const ENGINES = [
         hint: "兼容本仓库 work.js Worker：POST JSON + Authorization Bearer；密钥用 wrangler secret put SECRET_PASS，勿写进源码。源语言为 auto 时按正文脚本猜测（中/日/韩/英）；简繁均映射为 zh。",
     configurable: true,
   },
+  {
+    value: "baidu",
+    label: "百度翻译",
+    subtitle: "开放平台，需 App ID",
+    hint: "需填写百度翻译开放平台 App ID 与密钥（通用翻译 API）",
+    configurable: true,
+  },
+  {
+    value: "youdao",
+    label: "有道翻译",
+    subtitle: "智云，需应用密钥",
+    hint: "需填写有道智云应用 ID（appKey）与应用密钥（文本翻译 API）",
+    configurable: true,
+  },
 ] as const;
 
 /** Prefer `list_engines` from Rust; this set is a local fallback / type helper. */

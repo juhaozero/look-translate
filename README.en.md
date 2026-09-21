@@ -106,6 +106,8 @@ Logs: `data/logs/` (also openable from About).
 | `google`        | Google Cloud Translation API v2      | Required                     |
 | `google_web`    | Google gtx web endpoint (unofficial) | Not required                 |
 | `cloudflare`    | Cloudflare Workers / translate-api   | Worker URL + optional secret |
+| `baidu`         | Baidu Translate open platform        | App ID + secret              |
+| `youdao`        | Youdao Zhiyun text translation       | App key + app secret         |
 | `[engines.*]`   | Config-driven custom HTTP            | Per profile                  |
 
 Unofficial web endpoints may rate-limit or break; prefer official APIs for production.

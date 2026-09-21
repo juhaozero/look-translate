@@ -109,6 +109,10 @@ export type AppConfig = {
     google_api_key?: string | null;
     cloudflare_endpoint?: string | null;
     cloudflare_secret?: string | null;
+    baidu_app_id?: string | null;
+    baidu_secret?: string | null;
+    youdao_app_key?: string | null;
+    youdao_app_secret?: string | null;
   };
   /** Config-driven profiles (`[engines.<id>]`). */
   engines?: Record<string, EngineProfileConfig>;
@@ -141,6 +145,10 @@ export function emptyConfig(): AppConfig {
       google_api_key: null,
       cloudflare_endpoint: null,
       cloudflare_secret: null,
+      baidu_app_id: null,
+      baidu_secret: null,
+      youdao_app_key: null,
+      youdao_app_secret: null,
     },
     engines: {},
     ocr: {

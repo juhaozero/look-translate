@@ -12,6 +12,10 @@ pub struct BuiltinCredentials {
     pub google_api_key: Option<String>,
     pub cloudflare_endpoint: Option<String>,
     pub cloudflare_secret: Option<String>,
+    pub baidu_app_id: Option<String>,
+    pub baidu_secret: Option<String>,
+    pub youdao_app_key: Option<String>,
+    pub youdao_app_secret: Option<String>,
 }
 
 impl BuiltinCredentials {
@@ -22,6 +26,10 @@ impl BuiltinCredentials {
             google_api_key: trim_opt(engine.google_api_key.as_deref()),
             cloudflare_endpoint: trim_opt(engine.cloudflare_endpoint.as_deref()),
             cloudflare_secret: trim_opt(engine.cloudflare_secret.as_deref()),
+            baidu_app_id: trim_opt(engine.baidu_app_id.as_deref()),
+            baidu_secret: trim_opt(engine.baidu_secret.as_deref()),
+            youdao_app_key: trim_opt(engine.youdao_app_key.as_deref()),
+            youdao_app_secret: trim_opt(engine.youdao_app_secret.as_deref()),
         }
     }
 }
@@ -43,6 +51,8 @@ mod tests {
         engine.microsoft_api_key = Some("  key  ".into());
         engine.google_api_key = Some("   ".into());
         engine.cloudflare_endpoint = Some("https://x.workers.dev".into());
+        engine.baidu_app_id = Some("  2015  ".into());
+        engine.youdao_app_secret = Some("".into());
 
         let creds = BuiltinCredentials::from_engine_config(&engine);
         assert_eq!(creds.microsoft_api_key.as_deref(), Some("key"));
@@ -51,5 +61,7 @@ mod tests {
             creds.cloudflare_endpoint.as_deref(),
             Some("https://x.workers.dev")
         );
+        assert_eq!(creds.baidu_app_id.as_deref(), Some("2015"));
+        assert!(creds.youdao_app_secret.is_none());
     }
 }

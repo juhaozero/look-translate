@@ -106,6 +106,8 @@ active = "microsoft_web"
 | `google`        | Google Cloud Translation API v2    | 需要                      |
 | `google_web`    | Google gtx 网页接口（非官方）      | 不需要                    |
 | `cloudflare`    | Cloudflare Workers / translate-api | Worker 地址 + 可选 secret |
+| `baidu`         | 百度翻译开放平台（通用翻译 API）   | App ID + 密钥             |
+| `youdao`        | 有道智云文本翻译 API               | 应用 ID + 应用密钥        |
 | `[engines.*]`   | Config-driven 自定义 HTTP          | 按 Profile                |
 
 非官方网页接口可能限流或失效，生产环境建议使用官方 API。

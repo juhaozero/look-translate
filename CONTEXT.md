@@ -5,7 +5,7 @@ Windows 划词翻译：选中文本后经可配置引擎出译文；短词可辅
 ## Language
 
 **Builtin Engine**:
-宿主内置、代码实现的翻译引擎（如 Microsoft、Google、Cloudflare）。
+宿主内置、代码实现的翻译引擎（如 Microsoft、Google、Cloudflare、百度、有道）。仅在 Config-driven 的 Auth Mode 表达不了请求（尤其是签名）时新增，不为「热门厂商」默认内置。
 _Avoid_: 插件引擎、官方引擎（易与厂商「官方 API」混淆）
 
 **Config-driven Engine**:
