@@ -70,7 +70,7 @@ npm run tauri:dev
 <安装目录>/data/config.toml
 ```
 
-示例见 `[data/config.toml.example](data/config.toml.example)`。
+示例见 [`data/config.toml.example`](data/config.toml.example)。
 
 常用片段：
 
@@ -93,7 +93,7 @@ active = "microsoft_web"
 # 客户端：POST JSON + Authorization: Bearer <secret>（勿把密钥写进 Worker 源码）
 ```
 
-自定义厂商（如 DeepL）可通过 `[engines.<id>]` 配置驱动接入，说明见 `[docs/engine-profiles.md](docs/engine-profiles.md)`。
+自定义厂商（如 DeepL）可通过 `[engines.<id>]` 配置驱动接入，说明见 [`docs/engine-profiles.md`](docs/engine-profiles.md)。
 
 日志目录：`data/logs/`（关于页可一键打开）。
 

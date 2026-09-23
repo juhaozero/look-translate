@@ -62,10 +62,10 @@ src-tauri/target/debug/data/
 
 ### 触发
 
-| 触发                               | 行为                                                                       |
-| ---------------------------------- | -------------------------------------------------------------------------- |
-| 推送正式标签 `vX.Y.Z`              | 生成版本间隔 changelog → 校验版本 → 打 NSIS + MSI → 创建 **draft** Release |
-| Actions 里手动 `workflow_dispatch` | 仅构建并把安装包上传为 workflow artifact，**不**创建 Release               |
+| 触发                               | 行为                                                             |
+| ---------------------------------- | ---------------------------------------------------------------- |
+| 推送正式标签 `vX.Y.Z`              | 生成版本间隔 changelog → 校验版本 → 打 NSIS + MSI → 创建 Release |
+| Actions 里手动 `workflow_dispatch` | 仅构建并把安装包上传为 workflow artifact，**不**创建 Release     |
 
 不支持预发布标签（如 `v1.0.0-rc.1`）；试包请用手动触发。
 
