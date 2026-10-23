@@ -27,7 +27,21 @@ use crate::tray_state::TrayHotkeyToggle;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let paths = resolve_paths().expect("resolve Look Translate data paths");
+    let config = load_or_init(&paths).expect("load Look Translate config");
+    let hotkey_enabled = config.general.hotkey_enabled;
+    let launch_at_startup = config.general.launch_at_startup;
+
     tauri::Builder::default()
+        // Bundled pages can invoke commands while windows are being created,
+        // before setup runs. Register their state before any webview starts.
+        .manage(ConfigState::new(paths, config))
+        .manage(CaptureState::default())
+        .manage(TranslationState::default())
+        .manage(TranslationCacheState::default())
+        .manage(DictionaryState::default())
+        .manage(OcrSessionState::default())
+        .manage(PopupUiState::default())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
@@ -61,23 +75,7 @@ pub fn run() {
             commands::translate_cmd::translate_text,
             commands::translate_cmd::clear_translation_cache,
         ])
-        .setup(|app| {
-            let paths = resolve_paths().map_err(|e| {
-                std::io::Error::new(std::io::ErrorKind::Other, e)
-            })?;
-            let config = load_or_init(&paths).map_err(|e| {
-                std::io::Error::new(std::io::ErrorKind::Other, e)
-            })?;
-            let hotkey_enabled = config.general.hotkey_enabled;
-            let launch_at_startup = config.general.launch_at_startup;
-            app.manage(ConfigState::new(paths, config));
-            app.manage(CaptureState::default());
-            app.manage(TranslationState::default());
-            app.manage(TranslationCacheState::default());
-            app.manage(DictionaryState::default());
-            app.manage(OcrSessionState::default());
-            app.manage(PopupUiState::default());
-
+        .setup(move |app| {
             if let Err(err) = hotkey::apply_from_state(app.handle()) {
                 eprintln!("[look-translate] hotkey apply failed on startup: {err}");
             }

@@ -10,7 +10,7 @@ Select text and press a hotkey to translate. Supports parallel engines, optional
 
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.0.5-blue)
+![Version](https://img.shields.io/badge/version-0.0.6-blue)
 ![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)
 
 ## Features
@@ -30,6 +30,8 @@ Select text and press a hotkey to translate. Supports parallel engines, optional
 3. After install the app stays in the tray; first launch creates `data/` next to the executable
 
 > WebView2 is required. The installer can bootstrap it when missing.
+
+If the app exits immediately on launch, check `%LOCALAPPDATA%\Look Translate\logs\startup.log` for startup panic details.
 
 ### Run from source
 
