@@ -4,6 +4,7 @@ target_lang = "zh-CN"
 source_lang = "auto"
 hotkey_translate = "Shift+Q"
 hotkey_ocr = "Ctrl+Shift+D"
+hotkey_input = "Ctrl+Shift+T"
 hotkey_enabled = true
 follow_system_proxy = true
 launch_at_startup = true
@@ -33,32 +34,9 @@ active = "microsoft"
 # youdao_app_key = "your-app-key"
 # youdao_app_secret = "your-app-secret"
 #
-# Config-driven engines: settings can insert [engines.custom], or copy samples from
-# docs/engine-profiles.md (includes a full DeepL example).
-# active = "custom"
-
-# [engines.custom]
-# label = "自定义 HTTP"
-# method = "POST"
-# url = "https://example.com/v1/translate"
-# auth = "bearer"
-# token = "{{extra.api_key}}"
-# body_type = "json"
-# text_path = "data.text"
-# error_path = "error.message"
-#
-# [engines.custom.body]
-# text = "{{text}}"
-# source_lang = "{{source_lang}}"
-# target_lang = "{{target_lang}}"
-#
-# [engines.custom.extra]
-# api_key = "your-api-key"
-#
-# [engines.custom.lang_map]
-# zh-CN = "zh-CN"
-# en = "en"
-# auto = "auto"
+# DeepL official API (Free keys end in :fx; other keys use Pro):
+# deepl_api_key = "your-api-key:fx"
+# active = "deepl"
 
 [ocr]
 engine = "system"

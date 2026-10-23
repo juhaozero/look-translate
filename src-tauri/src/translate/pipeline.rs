@@ -29,7 +29,7 @@ pub trait EngineRunner: Send + Sync {
     ) -> Result<TranslationResult, String>;
 }
 
-/// Dispatches to builtin / config-driven engines via [`translate_with_engine`].
+/// Dispatches to supported services via [`translate_with_engine`].
 pub struct BuiltinEngineRunner;
 
 #[async_trait]

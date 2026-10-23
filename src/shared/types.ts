@@ -1,5 +1,3 @@
-import type { EngineProfileConfig } from "./options";
-
 export type AppInfo = {
   name: string;
   version: string;
@@ -20,6 +18,8 @@ export type HotkeyStatus = {
   enabled: boolean;
   translate: string;
   ocr?: string;
+  input: string;
+  inputRegistered: boolean;
   translateRegistered?: boolean;
   ocrRegistered?: boolean;
   /** @deprecated alias of translateRegistered */
@@ -74,7 +74,7 @@ export type EngineCatalogItem = {
   subtitle: string;
   hint: string;
   configurable: boolean;
-  kind: "builtin" | "profile" | string;
+  kind: "builtin";
 };
 
 export type InstallRecommendedDictResult = {
@@ -84,18 +84,13 @@ export type InstallRecommendedDictResult = {
   config: AppConfig;
 };
 
-export type EnsureProfileResult = {
-  created: boolean;
-  message: string;
-  config: AppConfig;
-};
-
 export type AppConfig = {
   general: {
     target_lang: string;
     source_lang: string;
     hotkey_translate: string;
     hotkey_ocr: string;
+    hotkey_input: string;
     hotkey_enabled: boolean;
     follow_system_proxy: boolean;
     launch_at_startup: boolean;
@@ -107,6 +102,7 @@ export type AppConfig = {
     microsoft_api_key?: string | null;
     microsoft_region?: string | null;
     google_api_key?: string | null;
+    deepl_api_key?: string | null;
     cloudflare_endpoint?: string | null;
     cloudflare_secret?: string | null;
     baidu_app_id?: string | null;
@@ -114,8 +110,6 @@ export type AppConfig = {
     youdao_app_key?: string | null;
     youdao_app_secret?: string | null;
   };
-  /** Config-driven profiles (`[engines.<id>]`). */
-  engines?: Record<string, EngineProfileConfig>;
   ocr: {
     /** `system` | `tesseract` */
     engine: string;
@@ -133,6 +127,7 @@ export function emptyConfig(): AppConfig {
       source_lang: "auto",
       hotkey_translate: "Ctrl+Shift+D",
       hotkey_ocr: "Ctrl+Shift+S",
+      hotkey_input: "Ctrl+Shift+T",
       hotkey_enabled: true,
       follow_system_proxy: true,
       launch_at_startup: false,
@@ -143,6 +138,7 @@ export function emptyConfig(): AppConfig {
       microsoft_api_key: null,
       microsoft_region: null,
       google_api_key: null,
+      deepl_api_key: null,
       cloudflare_endpoint: null,
       cloudflare_secret: null,
       baidu_app_id: null,
@@ -150,7 +146,6 @@ export function emptyConfig(): AppConfig {
       youdao_app_key: null,
       youdao_app_secret: null,
     },
-    engines: {},
     ocr: {
       engine: "system",
     },

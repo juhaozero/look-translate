@@ -25,6 +25,7 @@ export function normalizeConfig(config: AppConfig): AppConfig {
       target_lang: normalizeLangCode(config.general.target_lang) || "zh-CN",
       source_lang: normalizeLangCode(config.general.source_lang) || "auto",
       hotkey_translate: config.general.hotkey_translate.trim() || "Ctrl+Shift+D",
+      hotkey_input: config.general.hotkey_input?.trim() || "Ctrl+Shift+T",
       launch_at_startup: Boolean(config.general.launch_at_startup),
     },
     engine: {
@@ -34,6 +35,7 @@ export function normalizeConfig(config: AppConfig): AppConfig {
       microsoft_api_key: normalizeOptionalKey(config.engine.microsoft_api_key),
       microsoft_region: normalizeOptionalKey(config.engine.microsoft_region),
       google_api_key: normalizeOptionalKey(config.engine.google_api_key),
+      deepl_api_key: normalizeOptionalKey(config.engine.deepl_api_key),
       cloudflare_endpoint: normalizeOptionalKey(
         config.engine.cloudflare_endpoint,
       ),
@@ -43,7 +45,6 @@ export function normalizeConfig(config: AppConfig): AppConfig {
       youdao_app_key: normalizeOptionalKey(config.engine.youdao_app_key),
       youdao_app_secret: normalizeOptionalKey(config.engine.youdao_app_secret),
     },
-    engines: config.engines ?? {},
     ocr: {
       engine: ocrEngine,
     },
@@ -59,18 +60,19 @@ export function serializeConfig(config: AppConfig): string {
 }
 
 export function validateConfig(config: AppConfig): string | null {
+  if (!config.general.hotkey_input.trim()) {
+    return "输入翻译热键不能为空";
+  }
+  const shortcuts = [config.general.hotkey_translate, config.general.hotkey_ocr,
+    config.general.hotkey_input].map((s) => s.trim().toLowerCase()).filter(Boolean);
+  if (new Set(shortcuts).size !== shortcuts.length) {
+    return "划词、OCR 和输入翻译热键不能相同";
+  }
   if (!config.general.hotkey_translate.trim()) {
     return "划词热键不能为空";
   }
   if (!config.general.target_lang.trim()) {
     return "目标语言不能为空";
-  }
-  if (
-    config.general.hotkey_ocr.trim() &&
-    config.general.hotkey_translate.trim().toLowerCase() ===
-      config.general.hotkey_ocr.trim().toLowerCase()
-  ) {
-    return "划词热键与 OCR 热键不能相同";
   }
   const actives = resolveActives(config.engine);
   if (actives.length === 0) {
@@ -87,16 +89,7 @@ export function validateConfig(config: AppConfig): string | null {
   }
   for (const active of actives) {
     if (!BUILTIN_ENGINE_IDS.has(active)) {
-      const profile = config.engines?.[active];
-      if (!profile) {
-        return `未找到自定义引擎 [engines.${active}]，请检查 config.toml`;
-      }
-      if (!(profile.url ?? "").trim()) {
-        return `自定义引擎 ${active} 缺少 url`;
-      }
-      if (!(profile.text_path ?? "").trim()) {
-        return `自定义引擎 ${active} 缺少 text_path`;
-      }
+      return `未知翻译服务：${active}`;
     }
   }
   return null;

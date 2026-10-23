@@ -34,6 +34,9 @@ pub async fn translate_text(
     text: String,
     target_lang: Option<String>,
 ) -> Result<TranslationPayload, String> {
+    if text.trim().is_empty() {
+        return Err("请输入要翻译的文本".into());
+    }
     run_translate(&app, text, target_lang).await
 }
 
@@ -51,6 +54,7 @@ pub async fn run_translate(
     text: String,
     target_lang: Option<String>,
 ) -> Result<TranslationPayload, String> {
+    let generation = app.state::<TranslationState>().begin();
     let config = {
         let state = app
             .try_state::<ConfigState>()
@@ -83,7 +87,11 @@ pub async fn run_translate(
         cache.as_deref(),
         dict_entry,
         runner,
-        |payload| store_and_emit(app, payload),
+        |payload| {
+            if app.state::<TranslationState>().is_current(generation) {
+                store_and_emit(app, payload);
+            }
+        },
     )
     .await;
 

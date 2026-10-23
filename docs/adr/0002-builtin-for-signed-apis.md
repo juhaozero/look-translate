@@ -1,3 +1,5 @@
+> 已被取代：自定义 HTTP 引擎已移除，当前仅支持内置服务；DeepL 配置见 [DeepL 翻译服务](../deepl.md)。以下保留历史决策。
+
 # Builtin Engines when Auth Mode cannot sign
 
 ADR 0001 keeps new vendors on Config-driven Engine profiles and refuses cloud HMAC in the generic adapter. Baidu and Youdao **official** text APIs need request-body-dependent signatures (MD5 / SHA256) that v1 Auth Modes (`none` / `header` / `query` / `bearer` / `basic`) cannot express.

@@ -21,7 +21,7 @@ export function TranslatePanel({
         onChange={(value) => updateGeneral("target_lang", value)}
       />
       <p className="settings-panel-foot">
-        划词后浮层里仍可临时改目标语并重译；此处为默认值。
+        英文默认译为中文，中文默认译为英文；其他语言使用此处设置。浮层中可手动选择目标语并重译。
       </p>
     </section>
   );

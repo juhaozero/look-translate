@@ -3,12 +3,12 @@
 use reqwest::Client;
 use serde::Serialize;
 
-use crate::config::{is_builtin_engine, AppConfig, EngineProfile};
+use crate::config::AppConfig;
 
 use super::baidu::BaiduTranslator;
 use super::cloudflare::CloudflareTranslator;
-use super::config_driven::ConfigDrivenTranslator;
 use super::credentials::BuiltinCredentials;
+use super::deepl::DeepLTranslator;
 use super::google::{GoogleCloudTranslator, GoogleWebTranslator};
 use super::microsoft::MicrosoftTranslator;
 use super::microsoft_web::MicrosoftWebTranslator;
@@ -75,6 +75,13 @@ pub const BUILTIN_ENGINES: &[BuiltinEngineMeta] = &[
         hint: "需填写有道智云应用 ID（appKey）与应用密钥（文本翻译 API）",
         configurable: true,
     },
+    BuiltinEngineMeta {
+        id: "deepl",
+        label: "DeepL 翻译",
+        subtitle: "官方 API，支持 Free / Pro",
+        hint: "填写 DeepL API Key；根据密钥自动选择 Free 或 Pro 接口",
+        configurable: true,
+    },
 ];
 
 pub fn builtin_meta(id: &str) -> Option<&'static BuiltinEngineMeta> {
@@ -93,14 +100,13 @@ pub struct EngineCatalogItem {
     pub subtitle: String,
     pub hint: String,
     pub configurable: bool,
-    /// `builtin` | `profile`
+    /// `builtin`
     pub kind: String,
 }
 
-/// Builtin engines first (fixed order), then Config-driven profiles (sorted).
-/// Same-named profiles are skipped (Builtin wins).
-pub fn list_engine_catalog(config: &AppConfig) -> Vec<EngineCatalogItem> {
-    let mut list: Vec<EngineCatalogItem> = BUILTIN_ENGINES
+/// List supported translation services.
+pub fn list_engine_catalog(_config: &AppConfig) -> Vec<EngineCatalogItem> {
+    BUILTIN_ENGINES
         .iter()
         .map(|meta| EngineCatalogItem {
             id: meta.id.into(),
@@ -110,30 +116,10 @@ pub fn list_engine_catalog(config: &AppConfig) -> Vec<EngineCatalogItem> {
             configurable: meta.configurable,
             kind: "builtin".into(),
         })
-        .collect();
-
-    let mut profile_ids: Vec<&String> = config.engines.keys().collect();
-    profile_ids.sort();
-    for id in profile_ids {
-        if is_builtin_engine(id) {
-            continue;
-        }
-        let profile: &EngineProfile = &config.engines[id];
-        list.push(EngineCatalogItem {
-            id: id.clone(),
-            label: profile.display_label(id).to_string(),
-            subtitle: "自定义（config.toml）".into(),
-            hint: format!(
-                "请在 data/config.toml 的 [engines.{id}] 中编辑；此处仅可切换启用。"
-            ),
-            configurable: true,
-            kind: "profile".into(),
-        });
-    }
-    list
+        .collect()
 }
 
-/// Build a Translator adapter for `engine_id` (Builtin or Config-driven Profile).
+/// Build a Translator adapter for `engine_id` (supported service).
 pub fn resolve_translator(
     config: &AppConfig,
     engine_id: &str,
@@ -160,11 +146,9 @@ pub fn resolve_translator(
         "youdao" => Ok(Box::new(YoudaoTranslator::from_credentials(
             &creds, client,
         )?)),
-        other if !other.is_empty() && !is_builtin_engine(other) => Ok(Box::new(
-            ConfigDrivenTranslator::from_profile(config, other, client)?,
-        )),
+        "deepl" => Ok(Box::new(DeepLTranslator::from_credentials(&creds, client)?)),
         other => Err(format!(
-            "未知翻译引擎 `{other}`（内置：microsoft / microsoft_web / google / google_web / cloudflare / baidu / youdao；或配置 `[engines.<id>]`）"
+            "未知翻译引擎 `{other}`（内置：microsoft / microsoft_web / google / google_web / cloudflare / baidu / youdao / deepl）"
         )),
     }
 }
@@ -172,34 +156,13 @@ pub fn resolve_translator(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::EngineProfile;
-
     #[test]
-    fn catalog_builtins_then_profiles_skips_shadowed() {
-        let mut config = AppConfig::default();
-        config.engines.insert(
-            "deepl".into(),
-            EngineProfile {
-                label: Some("DeepL".into()),
-                ..EngineProfile::default()
-            },
-        );
-        config.engines.insert(
-            "microsoft".into(),
-            EngineProfile {
-                label: Some("shadow".into()),
-                ..EngineProfile::default()
-            },
-        );
-
-        let catalog = list_engine_catalog(&config);
-        assert_eq!(catalog[0].id, "microsoft");
-        assert_eq!(catalog[0].kind, "builtin");
-        assert!(catalog.iter().any(|i| i.id == "deepl" && i.kind == "profile"));
-        assert_eq!(
-            catalog.iter().filter(|i| i.id == "microsoft").count(),
-            1
-        );
+    fn catalog_contains_deepl_service() {
+        let catalog = list_engine_catalog(&AppConfig::default());
+        assert!(catalog
+            .iter()
+            .any(|item| item.id == "deepl" && item.configurable));
+        assert!(catalog.iter().all(|item| item.kind == "builtin"));
     }
 
     #[test]

@@ -21,8 +21,13 @@ export function HotkeyPanel({
           onChange={(next) => updateGeneral("hotkey_ocr", next)}
         />
         <p className="settings-panel-foot">
-          划词热键走剪贴板；OCR 热键打开框选层识别，二者互不兜底。
+          划词热键获取选中文本；OCR 热键框选识别；输入翻译热键打开文本输入框。
         </p>
+        <HotkeyRecorder
+          label="输入翻译"
+          value={config.general.hotkey_input}
+          onChange={(next) => updateGeneral("hotkey_input", next)}
+        />
       </section>
       <section className="settings-panel">
         <ToggleRow
@@ -52,6 +57,11 @@ export function HotkeyPanel({
               : "热键已关闭（可在托盘菜单中开关）"
             : "读取热键状态中…"}
         </p>
+        {hotkeyStatus?.enabled ? (
+          <p className={hotkeyStatus.inputRegistered ? "settings-panel-foot" : "settings-panel-foot is-warn"}>
+            {hotkeyStatus.inputRegistered ? "输入翻译已注册" : "输入翻译未注册"}：{hotkeyStatus.input}
+          </p>
+        ) : null}
       </section>
     </>
   );

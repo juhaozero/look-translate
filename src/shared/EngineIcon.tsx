@@ -1,5 +1,4 @@
 import type { EngineId } from "./options";
-import { BUILTIN_ENGINE_IDS } from "./options";
 import baiduIcon from "../assets/brands/baidu.png";
 import bingIcon from "../assets/brands/bing.png";
 import cloudflareIcon from "../assets/brands/cloudflare.png";
@@ -11,10 +10,6 @@ type IconProps = {
   className?: string;
   title?: string;
 };
-
-function isBuiltinBrand(engine: string): boolean {
-  return BUILTIN_ENGINE_IDS.has(engine);
-}
 
 function resolveBrandSrc(engine: string): string | null {
   switch (engine) {
@@ -52,6 +47,8 @@ function resolveBrandLabel(engine: string): string {
       return "百度翻译";
     case "youdao":
       return "有道翻译";
+    case "deepl":
+      return "DeepL";
     case "system":
       return "系统 OCR";
     case "tesseract":
@@ -61,16 +58,16 @@ function resolveBrandLabel(engine: string): string {
   }
 }
 
-function CustomEngineGlyph() {
+function EngineGlyph({ engine }: { engine: string }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <rect x="3" y="3" width="18" height="18" rx="4" fill="#475569" />
-      <path
+      {engine === "deepl" ? <text x="12" y="16" textAnchor="middle" fill="#fff" fontSize="12" fontWeight="700">D</text> : <path
         d="M8 12h8M12 8v8"
         stroke="#F8FAFC"
         strokeWidth="1.75"
         strokeLinecap="round"
-      />
+      />}
     </svg>
   );
 }
@@ -88,7 +85,6 @@ export function EngineIcon({
   const web = engine === "microsoft_web" || engine === "google_web";
   const src = resolveBrandSrc(engine);
   const label = resolveBrandLabel(engine);
-  const custom = !isBuiltinBrand(engine);
 
   return (
     <span
@@ -101,8 +97,8 @@ export function EngineIcon({
       aria-label={label}
       role="img"
     >
-      {custom || !src ? (
-        <CustomEngineGlyph />
+      {!src ? (
+        <EngineGlyph engine={engine} />
       ) : (
         <img src={src} alt="" draggable={false} />
       )}

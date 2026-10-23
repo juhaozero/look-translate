@@ -3,12 +3,37 @@ use std::time::{Duration, Instant};
 
 use arboard::Clipboard;
 use enigo::{Enigo, Mouse, Settings};
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow};
+use tauri::{
+    AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, Position, Size, WebviewWindow,
+};
 
 /// Tracks when the popup was last shown to ignore spurious early blur events.
 #[derive(Default)]
 pub struct PopupUiState {
     pub last_shown: Mutex<Option<Instant>>,
+    pub input_mode: Mutex<bool>,
+}
+
+#[tauri::command]
+pub fn get_popup_input_mode(app: AppHandle) -> bool {
+    app.state::<PopupUiState>()
+        .input_mode
+        .lock()
+        .map(|v| *v)
+        .unwrap_or(false)
+}
+
+pub fn open_input_popup(app: &AppHandle) -> Result<(), String> {
+    let translations = app.state::<crate::translate::TranslationState>();
+    translations.begin();
+    translations.clear();
+    *app.state::<PopupUiState>()
+        .input_mode
+        .lock()
+        .map_err(|e| e.to_string())? = true;
+    open_popup(app)?;
+    app.emit("input-translation-opened", ())
+        .map_err(|e| e.to_string())
 }
 
 fn show_window(window: &WebviewWindow) -> Result<(), String> {
@@ -183,8 +208,7 @@ pub fn hide_popup_window(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn copy_text(text: String) -> Result<(), String> {
-    let mut clipboard =
-        Clipboard::new().map_err(|e| format!("打开剪贴板失败: {e}"))?;
+    let mut clipboard = Clipboard::new().map_err(|e| format!("打开剪贴板失败: {e}"))?;
     clipboard
         .set_text(text)
         .map_err(|e| format!("复制失败: {e}"))

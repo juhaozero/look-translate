@@ -10,13 +10,13 @@ Select text and press a hotkey to translate. Supports parallel engines, optional
 
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.0.4-blue)
+![Version](https://img.shields.io/badge/version-0.0.5-blue)
 ![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)
 
 ## Features
 
 - **Select to translate**: select text → global hotkey → popup near the cursor
-- **Parallel engines**: enable multiple services at once (Microsoft / Bing web / Google / Cloudflare Workers / custom HTTP); results are shown per engine with individual copy actions
+- **Parallel engines**: enable multiple services at once (Microsoft / Bing web / Google / Cloudflare Workers / DeepL); results are shown per engine with individual copy actions
 - **OCR translate**: separate hotkey to select a screen region (system OCR or Tesseract.js)
 - **Local dictionary**: short words can look up MDict (`.mdx`); optional one-click ECDICT install
 - **Portable config**: `data/config.toml` beside the install dir; system proxy, launch at startup, editable hotkeys
@@ -93,7 +93,7 @@ active = "microsoft_web"
 # Client uses POST JSON + Authorization: Bearer <secret> (do not hardcode the secret in Worker source)
 ```
 
-Custom providers (e.g. DeepL) can be added via config-driven `[engines.<id>]` profiles. See [`docs/engine-profiles.md`](docs/engine-profiles.md).
+Configure DeepL directly in service settings with an API key. Free / Pro endpoints are selected automatically. Custom HTTP engines have been removed; see [`docs/deepl.md`](docs/deepl.md).
 
 Logs: `data/logs/` (also openable from About).
 
@@ -108,7 +108,7 @@ Logs: `data/logs/` (also openable from About).
 | `cloudflare`    | Cloudflare Workers / translate-api   | Worker URL + optional secret |
 | `baidu`         | Baidu Translate open platform        | App ID + secret              |
 | `youdao`        | Youdao Zhiyun text translation       | App key + app secret         |
-| `[engines.*]`   | Config-driven custom HTTP            | Per profile                  |
+| `deepl`         | DeepL official API (Free / Pro)      | API key                      |
 
 Unofficial web endpoints may rate-limit or break; prefer official APIs for production.
 

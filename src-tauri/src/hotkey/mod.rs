@@ -23,8 +23,10 @@ pub struct HotkeyStatus {
     pub enabled: bool,
     pub translate: String,
     pub ocr: String,
+    pub input: String,
     pub translate_registered: bool,
     pub ocr_registered: bool,
+    pub input_registered: bool,
     /// Backward-compatible alias of `translate_registered`.
     pub registered: bool,
 }
@@ -40,6 +42,7 @@ pub fn validate_shortcut(raw: &str) -> Result<Shortcut, String> {
 
 /// Unregister all shortcuts, then register translate + OCR hotkeys when enabled.
 pub fn apply(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
+    let (translate, ocr, input) = validate_hotkeys(config)?;
     let gs = app.global_shortcut();
     gs.unregister_all()
         .map_err(|e| format!("unregister hotkeys: {e}"))?;
@@ -51,11 +54,6 @@ pub fn apply(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
     let translate_raw = config.general.hotkey_translate.trim().to_string();
     let ocr_raw = config.general.hotkey_ocr.trim().to_string();
 
-    if !ocr_raw.is_empty() && translate_raw.eq_ignore_ascii_case(&ocr_raw) {
-        return Err("划词热键与 OCR 热键不能相同".into());
-    }
-
-    let translate = validate_shortcut(&translate_raw)?;
     gs.on_shortcut(translate, move |app, _shortcut, event| {
         // Use Released so Ctrl/Shift from the hotkey are already up before Ctrl+C.
         if event.state == ShortcutState::Released {
@@ -64,8 +62,7 @@ pub fn apply(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
     })
     .map_err(|e| format!("注册划词热键 `{translate_raw}` 失败（可能被占用）: {e}"))?;
 
-    if !ocr_raw.is_empty() {
-        let ocr = validate_shortcut(&ocr_raw)?;
+    if let Some(ocr) = ocr {
         gs.on_shortcut(ocr, move |app, _shortcut, event| {
             if event.state == ShortcutState::Released {
                 capture_cmd::run_ocr_and_show_popup(app);
@@ -74,7 +71,33 @@ pub fn apply(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
         .map_err(|e| format!("注册 OCR 热键 `{ocr_raw}` 失败（可能被占用）: {e}"))?;
     }
 
+    gs.on_shortcut(input, move |app, _shortcut, event| {
+        if event.state == ShortcutState::Released {
+            if let Err(err) = crate::commands::window_cmd::open_input_popup(app) {
+                eprintln!("[look-translate] open input popup failed: {err}");
+            }
+        }
+    })
+    .map_err(|e| format!("注册输入翻译热键失败（可能被占用）: {e}"))?;
+
     Ok(())
+}
+
+/// Parse before changing registrations, including aliases such as Ctrl/Control.
+pub fn validate_hotkeys(
+    config: &AppConfig,
+) -> Result<(Shortcut, Option<Shortcut>, Shortcut), String> {
+    let translate = validate_shortcut(&config.general.hotkey_translate)?;
+    let ocr = if config.general.hotkey_ocr.trim().is_empty() {
+        None
+    } else {
+        Some(validate_shortcut(&config.general.hotkey_ocr)?)
+    };
+    let input = validate_shortcut(&config.general.hotkey_input)?;
+    if ocr.as_ref() == Some(&translate) || ocr.as_ref() == Some(&input) || translate == input {
+        return Err("划词、OCR 和输入翻译热键不能相同".into());
+    }
+    Ok((translate, ocr, input))
 }
 
 pub fn apply_from_state(app: &AppHandle) -> Result<(), String> {
@@ -96,6 +119,11 @@ pub fn status(app: &AppHandle) -> Result<HotkeyStatus, String> {
     let enabled = config.general.hotkey_enabled;
     let translate = config.general.hotkey_translate.clone();
     let ocr = config.general.hotkey_ocr.clone();
+    let input = config.general.hotkey_input.clone();
+    let input_registered = enabled
+        && validate_shortcut(&input)
+            .map(|s| app.global_shortcut().is_registered(s))
+            .unwrap_or(false);
 
     let translate_registered = if enabled {
         validate_shortcut(&translate)
@@ -118,6 +146,8 @@ pub fn status(app: &AppHandle) -> Result<HotkeyStatus, String> {
         enabled,
         translate,
         ocr,
+        input,
+        input_registered,
         translate_registered,
         ocr_registered,
         registered: translate_registered,
@@ -133,6 +163,19 @@ mod tests {
         assert!(validate_shortcut(DEFAULT_TRANSLATE_HOTKEY).is_ok());
         assert!(validate_shortcut(DEFAULT_OCR_HOTKEY).is_ok());
         assert!(validate_shortcut("ctrl+shift+d").is_ok());
+        assert!(validate_hotkeys(&AppConfig::default()).is_ok());
+    }
+
+    #[test]
+    fn rejects_conflicting_input_shortcuts() {
+        let mut config = AppConfig::default();
+        config.general.hotkey_input = "Control+Shift+D".into();
+        assert!(validate_shortcut(&config.general.hotkey_input).is_ok());
+        assert!(validate_hotkeys(&config).is_err());
+        config.general.hotkey_input = config.general.hotkey_ocr.clone();
+        assert!(validate_hotkeys(&config).is_err());
+        config.general.hotkey_input = String::new();
+        assert!(validate_hotkeys(&config).is_err());
     }
 
     #[test]

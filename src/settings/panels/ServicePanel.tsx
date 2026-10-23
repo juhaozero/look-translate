@@ -5,17 +5,12 @@ import type { ServicePanelProps } from "./types";
 export function ServicePanel({
   config,
   setConfig,
-  paths,
   engineList,
   editingEngine,
-  profileBusy,
   onEngineToggle,
   onSelectOcrEngine,
   onOcrEngineToggle,
   onToggleEngineEditor,
-  onOpenConfigFile,
-  onReloadConfigFromDisk,
-  onAddCustomTemplate,
 }: ServicePanelProps) {
   return (
     <>
@@ -103,29 +98,6 @@ export function ServicePanel({
                     )}
                   </div>
                 </div>
-                {expanded && engine.kind === "profile" ? (
-                  <div className="service-card-editor">
-                    <p className="service-card-editor-hint">
-                      {engine.hint}
-                    </p>
-                    <div className="service-profile-actions">
-                      <button
-                        type="button"
-                        className="settings-btn settings-btn-ghost"
-                        onClick={() => void onOpenConfigFile()}
-                      >
-                        打开配置文件
-                      </button>
-                      <button
-                        type="button"
-                        className="settings-btn settings-btn-ghost"
-                        onClick={() => void onReloadConfigFromDisk()}
-                      >
-                        重新加载配置
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
                 {expanded && engine.value === "microsoft" ? (
                   <div className="service-card-editor">
                     <p className="service-card-editor-hint">
@@ -167,6 +139,28 @@ export function ServicePanel({
                         }
                       />
                     </label>
+                  </div>
+                ) : null}
+                {expanded && engine.value === "deepl" ? (
+                  <div className="service-card-editor">
+                    <p className="service-card-editor-hint">{engine.hint}</p>
+                    <label className="service-field">
+                      <span>API Key</span>
+                      <input
+                        type="password"
+                        autoComplete="off"
+                        className="settings-input"
+                        placeholder="DeepL API Free / Pro 密钥"
+                        value={config.engine.deepl_api_key ?? ""}
+                        onChange={(event) => setConfig({
+                          ...config,
+                          engine: { ...config.engine, deepl_api_key: event.target.value },
+                        })}
+                      />
+                    </label>
+                    <p className="service-card-editor-hint">
+                      以 :fx 结尾的密钥使用 Free 接口，其他密钥使用 Pro 接口。需要 DeepL API 套餐的密钥。
+                    </p>
                   </div>
                 ) : null}
                 {expanded && engine.value === "google" ? (
@@ -330,48 +324,8 @@ export function ServicePanel({
           })}
         </ul>
         <p className="settings-panel-foot service-list-foot">
-          同一时间仅一个翻译引擎生效。打开开关即切换当前服务；关闭当前无效。
+          可同时开启多个翻译服务，请至少保留一个服务。
         </p>
-        <div className="service-custom-engines">
-          <p className="service-custom-engines-title">自定义引擎（config.toml）</p>
-          <p className="service-custom-engines-desc">
-            在{" "}
-            <code>{paths?.configPath ?? "data/config.toml"}</code>{" "}
-            编写 <code>[engines.*]</code>
-            。可插入通用 HTTP 骨架，再按文档改成 DeepL 等任意厂商。
-          </p>
-          <div className="service-profile-actions">
-            <button
-              type="button"
-              className="settings-btn settings-btn-ghost"
-              onClick={() => void onOpenConfigFile()}
-            >
-              打开配置文件
-            </button>
-            <button
-              type="button"
-              className="settings-btn settings-btn-ghost"
-              onClick={() => void onReloadConfigFromDisk()}
-            >
-              重新加载配置
-            </button>
-            {/* <button
-              type="button"
-              className="settings-btn settings-btn-ghost"
-              onClick={() => void openEngineProfilesDoc()}
-            >
-              填写说明
-            </button> */}
-            <button
-              type="button"
-              className="settings-btn"
-              disabled={profileBusy}
-              onClick={() => void onAddCustomTemplate()}
-            >
-              {profileBusy ? "处理中…" : "添加通用模板"}
-            </button>
-          </div>
-        </div>
       </section>
 
       <section className="service-list-shell" aria-label="OCR 识别">

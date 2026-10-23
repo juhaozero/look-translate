@@ -12,10 +12,16 @@ export function PopupApp() {
     null,
   );
   const [targetLang, setTargetLang] = useState("zh-CN");
+  const [inputMode, setInputMode] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [inputTarget, setInputTarget] = useState("auto");
+  const [submitting, setSubmitting] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
+  const inputModeRef = useRef(false);
+  const sessionRef = useRef(0);
+  const expectedTextRef = useRef<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const [copiedEngine, setCopiedEngine] = useState<string | null>(null);
-  const [engineProfiles, setEngineProfiles] = useState<AppConfig["engines"]>(
-    {},
-  );
   const bodyRef = useRef<HTMLDivElement>(null);
   const copyTimerRef = useRef<number | null>(null);
 
@@ -25,13 +31,12 @@ export function PopupApp() {
         if (config.general?.target_lang) {
           setTargetLang(normalizeLangCode(config.general.target_lang) || "zh-CN");
         }
-        setEngineProfiles(config.engines ?? {});
       })
       .catch(console.error);
 
     invoke<CapturePayload | null>("get_last_capture")
       .then((payload) => {
-        if (payload) {
+        if (payload && !inputModeRef.current) {
           setCapture(payload);
         }
       })
@@ -39,7 +44,7 @@ export function PopupApp() {
 
     invoke<TranslationPayload | null>("get_last_translation")
       .then((payload) => {
-        if (payload) {
+        if (payload && !inputModeRef.current) {
           setTranslation(payload);
           if (payload.targetLang) {
             setTargetLang(payload.targetLang);
@@ -49,25 +54,57 @@ export function PopupApp() {
       .catch(console.error);
 
     const unlisteners: Array<() => void> = [];
+    let disposed = false;
+    const keepListener = (fn: () => void) => {
+      if (disposed) fn();
+      else unlisteners.push(fn);
+    };
+    const openInput = () => {
+      sessionRef.current += 1;
+      inputModeRef.current = true;
+      expectedTextRef.current = null;
+      setInputMode(true);
+      setDraft("");
+      setInputTarget("auto");
+      setCapture(null);
+      setTranslation(null);
+      setRequestError(null);
+      setCopiedEngine(null);
+      setSubmitting(false);
+      window.requestAnimationFrame(() => inputRef.current?.focus());
+    };
+    listen("input-translation-opened", openInput)
+      .then(keepListener).catch(console.error);
+    invoke<boolean>("get_popup_input_mode").then((mode) => {
+      if (!disposed && mode) openInput();
+    }).catch(console.error);
 
     listen<CapturePayload>("capture-updated", (event) => {
+      sessionRef.current += 1;
+      inputModeRef.current = false;
+      expectedTextRef.current = null;
+      setInputMode(false);
+      setSubmitting(false);
+      setRequestError(null);
       setCapture(event.payload);
       setTranslation(null);
       setCopiedEngine(null);
     })
-      .then((fn) => unlisteners.push(fn))
+      .then(keepListener)
       .catch(console.error);
 
     listen<TranslationPayload>("translation-updated", (event) => {
+      if (inputModeRef.current && event.payload.sourceText !== expectedTextRef.current) return;
       setTranslation(event.payload);
       if (event.payload.targetLang) {
         setTargetLang(event.payload.targetLang);
       }
     })
-      .then((fn) => unlisteners.push(fn))
+      .then(keepListener)
       .catch(console.error);
 
     return () => {
+      disposed = true;
       for (const unlisten of unlisteners) {
         unlisten();
       }
@@ -94,52 +131,47 @@ export function PopupApp() {
     : capture && !capture.empty
       ? capture.text
       : translation?.sourceText;
-  const canTranslate = Boolean(sourceText && sourceText.trim());
+  const canTranslate = inputMode || Boolean(sourceText && sourceText.trim());
   const engineResults = translation?.results ?? [];
   const isOcr = capture?.source === "ocr";
   const isLoading =
-    !captureFailed &&
-    (translation?.status === "loading" ||
-      engineResults.some((item) => item.status === "loading"));
+    submitting ||
+    (!captureFailed &&
+      (translation?.status === "loading" ||
+        engineResults.some((item) => item.status === "loading")));
   const showEngineResults = !captureFailed && engineResults.length > 0;
 
-  // Auto-scroll as progressive results arrive / content grows.
+  // Keep the original text and first result in view while engines finish.
   useEffect(() => {
-    const body = bodyRef.current;
-    if (!body) {
-      return;
-    }
-    const loadingEl = body.querySelector(
-      ".popup-result.is-loading",
-    ) as HTMLElement | null;
-    const target =
-      loadingEl ??
-      (body.querySelector(
-        ".popup-result:last-of-type",
-      ) as HTMLElement | null);
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    } else {
-      body.scrollTo({ top: body.scrollHeight, behavior: "smooth" });
-    }
-  }, [engineResults, translation?.dictionaryText, translation?.status]);
+    bodyRef.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [sourceText, inputMode]);
 
-  async function runTranslate(nextTarget: string) {
-    if (!sourceText?.trim()) {
+  async function runTranslate(nextTarget: string, text = sourceText) {
+    if (!text?.trim() || submitting) {
       return;
     }
     setCopiedEngine(null);
+    setRequestError(null);
+    setSubmitting(true);
+    const session = sessionRef.current;
+    expectedTextRef.current = text;
     try {
       await invoke<TranslationPayload>("translate_text", {
-        text: sourceText,
-        targetLang: nextTarget,
+        text,
+        targetLang: nextTarget === "auto" ? null : nextTarget,
       });
     } catch (error) {
-      console.error(error);
+      if (session === sessionRef.current) setRequestError(String(error));
+    } finally {
+      if (session === sessionRef.current) setSubmitting(false);
     }
   }
 
   async function onTargetLangChange(next: string) {
+    if (inputMode) {
+      setInputTarget(next);
+      return;
+    }
     setTargetLang(next);
     await runTranslate(next);
   }
@@ -182,7 +214,7 @@ export function PopupApp() {
 
       <header className="popup-header">
         <h1 className={isOcr ? "popup-title is-ocr" : "popup-title"}>
-          {isOcr ? "OCR 翻译" : "划词翻译"}
+          {inputMode ? "输入翻译" : isOcr ? "OCR 翻译" : "划词翻译"}
         </h1>
         <button
           type="button"
@@ -199,10 +231,11 @@ export function PopupApp() {
         <label className="popup-lang">
           <span>目标语</span>
           <select
-            value={targetLang}
+            value={inputMode ? inputTarget : targetLang}
             disabled={!canTranslate || isLoading}
             onChange={(event) => void onTargetLangChange(event.target.value)}
           >
+            {inputMode ? <option value="auto">中英自动互译 / 默认语言</option> : null}
             {TARGET_LANGS.map((lang) => (
               <option key={lang.value} value={lang.value}>
                 {lang.label}
@@ -225,6 +258,35 @@ export function PopupApp() {
       </div>
 
       <div className="popup-body" ref={bodyRef}>
+        {inputMode ? (
+          <form className="popup-input-form" onSubmit={(event) => {
+            event.preventDefault();
+            void runTranslate(inputTarget, draft.trim());
+          }}>
+            <label htmlFor="translation-input">要翻译的文本</label>
+            <textarea
+              id="translation-input"
+              ref={inputRef}
+              value={draft}
+              disabled={isLoading}
+              placeholder="输入或粘贴文本…"
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  if (!isLoading) void runTranslate(inputTarget, draft.trim());
+                }
+              }}
+            />
+            <div className="popup-input-actions">
+              <span>Ctrl+Enter 翻译</span>
+              <button className="popup-btn" type="submit" disabled={!draft.trim() || isLoading}>
+                {isLoading ? "翻译中…" : "翻译"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {requestError ? <p className="popup-error" role="alert">{requestError}</p> : null}
         {capture?.error ? (
           <p className="popup-error" role="alert">
             {capture.error}
@@ -238,12 +300,12 @@ export function PopupApp() {
             </div>
             <p>{sourceText}</p>
           </section>
-        ) : (
+        ) : !inputMode ? (
           <div className="popup-empty">
             <p>选中文本后按划词热键</p>
             <span>或将指针移到文字上按 OCR 热键。Esc / 点外部可关闭。</span>
           </div>
-        )}
+        ) : null}
 
         {showEngineResults
           ? engineResults.map((item) => {
@@ -263,14 +325,13 @@ export function PopupApp() {
                   aria-busy={item.status === "loading" ? true : undefined}
                 >
                   <div className="popup-block-head">
-                    <h2>译文</h2>
-                    <div className="popup-meta">
-                      <span className="popup-chip popup-chip-engine">
+                    <h2 className="popup-engine-name">
                         <EngineIcon engine={item.engine} size="sm" />
                         <span>
-                          {resolveEngineLabel(item.engine, engineProfiles)}
+                          {resolveEngineLabel(item.engine)}
                         </span>
-                      </span>
+                    </h2>
+                    <div className="popup-meta">
                       {item.detectedSourceLang ? (
                         <span className="popup-chip">
                           检测 {item.detectedSourceLang}
@@ -288,27 +349,20 @@ export function PopupApp() {
                       {item.status === "error" ? (
                         <span className="popup-chip is-error">失败</span>
                       ) : null}
-                    </div>
-                  </div>
-                  {item.status === "ok" && item.text ? (
-                    <>
-                      <p>{item.text}</p>
-                      <div className="popup-result-actions">
+                      {item.status === "ok" && item.text ? (
                         <button
                           type="button"
                           className="popup-btn popup-btn-copy"
-                          onClick={() =>
-                            void copyEngineText(item.engine, item.text ?? "")
-                          }
+                          aria-label={`复制 ${resolveEngineLabel(item.engine)} 译文`}
+                          onClick={() => void copyEngineText(item.engine, item.text ?? "")}
                         >
-                          {copied
-                            ? "已复制"
-                            : copyFailed
-                              ? "复制失败"
-                              : "复制"}
+                          {copied ? "已复制" : copyFailed ? "复制失败" : "复制"}
                         </button>
-                      </div>
-                    </>
+                      ) : null}
+                    </div>
+                  </div>
+                  {item.status === "ok" && item.text ? (
+                    <p>{item.text}</p>
                   ) : item.status === "loading" ? (
                     <div className="popup-skeleton-lines" aria-label="翻译中">
                       <span />

@@ -10,13 +10,15 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.0.4-blue)
+![Version](https://img.shields.io/badge/version-0.0.5-blue)
 ![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)
 
 ## 功能
 
 - **划词翻译**：选中文本 → 全局热键 → 光标附近浮层出译文
-- **多引擎并行**：可同时启用多个服务（微软 / 必应网页 / Google / Cloudflare Workers / 自定义 HTTP），结果分块展示、按引擎复制
+- **中英自动互译**：英文默认译为中文，中文默认译为英文；其他语言沿用设置中的默认语言，浮层内可手动选择目标语
+- **输入翻译**：按 `Ctrl+Shift+T` 打开输入框，输入或粘贴文本后点击「翻译」，也可按 `Ctrl+Enter`；快捷键可在设置中修改
+- **多引擎并行**：可同时启用多个服务（微软 / 必应网页 / Google / Cloudflare Workers / DeepL），结果分块展示、按引擎复制
 - **OCR 翻译**：独立热键框选屏幕文字（系统 OCR 或 Tesseract.js）
 - **本地词典**：短词可查 MDict（`.mdx`）；支持一键安装 ECDICT 推荐词库
 - **便携配置**：`data/config.toml` 与安装目录同级；跟随系统代理、开机自启、热键可改
@@ -53,6 +55,7 @@ npm run tauri:dev
 | -------- | ---------------- | ------------------------------ |
 | 划词翻译 | `Ctrl+Shift+D`   | 选中文本后按下；可在设置中修改 |
 | OCR 翻译 | `Ctrl+Shift+S`   | 框选屏幕区域识别后再翻译       |
+| 输入翻译 | `Ctrl+Shift+T`   | 输入或粘贴文本后点击翻译       |
 | 关闭浮层 | `Esc` / 点击外部 | —                              |
 
 托盘：
@@ -80,6 +83,7 @@ target_lang = "zh-CN"
 source_lang = "auto"
 hotkey_translate = "Ctrl+Shift+D"
 hotkey_ocr = "Ctrl+Shift+S"
+hotkey_input = "Ctrl+Shift+T"
 
 [engine]
 # 可并行启用多个引擎
@@ -93,22 +97,22 @@ active = "microsoft_web"
 # 客户端：POST JSON + Authorization: Bearer <secret>（勿把密钥写进 Worker 源码）
 ```
 
-自定义厂商（如 DeepL）可通过 `[engines.<id>]` 配置驱动接入，说明见 [`docs/engine-profiles.md`](docs/engine-profiles.md)。
+DeepL 可在服务设置中直接填写 API Key，自动选择 Free / Pro 接口，说明见 [`docs/deepl.md`](docs/deepl.md)。自定义 HTTP 引擎已移除。
 
 日志目录：`data/logs/`（关于页可一键打开）。
 
 ## 内置翻译引擎
 
-| ID              | 说明                               | Key                       |
-| --------------- | ---------------------------------- | ------------------------- |
-| `microsoft`     | Azure Translator Text API v3       | 需要                      |
-| `microsoft_web` | 必应网页接口（非官方）             | 不需要                    |
-| `google`        | Google Cloud Translation API v2    | 需要                      |
-| `google_web`    | Google gtx 网页接口（非官方）      | 不需要                    |
-| `cloudflare`    | Cloudflare Workers / translate-api | Worker 地址 + 可选 secret |
-| `baidu`         | 百度翻译开放平台（通用翻译 API）   | App ID + 密钥             |
-| `youdao`        | 有道智云文本翻译 API               | 应用 ID + 应用密钥        |
-| `[engines.*]`   | Config-driven 自定义 HTTP          | 按 Profile                |
+| ID              | 说明                                 | Key                       |
+| --------------- | ------------------------------------ | ------------------------- |
+| `microsoft`     | Azure Translator Text API v3         | 需要                      |
+| `microsoft_web` | 必应网页接口（非官方）               | 不需要                    |
+| `google`        | Google Cloud Translation API v2      | 需要                      |
+| `google_web`    | Google gtx 网页接口（非官方）        | 不需要                    |
+| `cloudflare`    | Cloudflare Workers / translate-api   | Worker 地址 + 可选 secret |
+| `baidu`         | 百度翻译开放平台（通用翻译 API）     | App ID + 密钥             |
+| `youdao`        | 有道智云文本翻译 API                 | 应用 ID + 应用密钥        |
+| `deepl`         | DeepL 官方文本翻译 API（Free / Pro） | API Key                   |
 
 非官方网页接口可能限流或失效，生产环境建议使用官方 API。
 

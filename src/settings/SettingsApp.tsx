@@ -11,7 +11,6 @@ import type {
   AppConfig,
   AppInfo,
   AppPaths,
-  EnsureProfileResult,
   HotkeyStatus,
   InstallRecommendedDictResult,
 } from "../shared/types";
@@ -92,7 +91,6 @@ export function SettingsApp() {
   const [loading, setLoading] = useState(true);
   const [installingDict, setInstallingDict] = useState(false);
   const [editingEngine, setEditingEngine] = useState<string | null>(null);
-  const [profileBusy, setProfileBusy] = useState(false);
   const [engineCatalog, setEngineCatalog] = useState<EngineListItem[] | null>(
     null,
   );
@@ -110,18 +108,18 @@ export function SettingsApp() {
   );
 
   const engineList = useMemo(
-    () => engineCatalog ?? buildEngineList(config.engines),
-    [engineCatalog, config.engines],
+    () => engineCatalog ?? buildEngineList(),
+    [engineCatalog],
   );
 
-  async function refreshEngineCatalog(nextConfig?: AppConfig) {
+  async function refreshEngineCatalog() {
     try {
       const catalog = await invoke<EngineCatalogItem[]>("list_engines");
       setEngineCatalog(catalogToEngineList(catalog));
     } catch (error: unknown) {
       console.error(error);
       setEngineCatalog(
-        buildEngineList((nextConfig ?? configRef.current).engines),
+        buildEngineList(),
       );
     }
   }
@@ -163,7 +161,7 @@ export function SettingsApp() {
       setPaths(appPaths);
       applyConfigFromDisk(appConfig);
       setHotkeyStatus(statusInfo);
-      await refreshEngineCatalog(appConfig);
+      await refreshEngineCatalog();
     } catch (error: unknown) {
       console.error(error);
       setStatus({ tone: "err", text: String(error) });
@@ -386,64 +384,6 @@ export function SettingsApp() {
     }
   }
 
-  async function reloadConfigFromDisk() {
-    if (dirty || saving) {
-      const ok = window.confirm(
-        "当前有未写入磁盘的修改，重新加载将丢弃这些修改。继续？",
-      );
-      if (!ok) {
-        return;
-      }
-    }
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
-    setStatus(null);
-    try {
-      const next = await invoke<AppConfig>("reload_config");
-      applyConfigFromDisk(next);
-      await refreshEngineCatalog(next);
-      showTransientOk("已从磁盘重新加载配置");
-    } catch (error) {
-      console.error(error);
-      setStatus({ tone: "err", text: String(error) });
-    }
-  }
-
-  async function addCustomTemplate() {
-    if (profileBusy) return;
-    if (dirty || saving) {
-      const ok = window.confirm(
-        "当前还有未自动保存完的修改。添加模板会写入配置文件，可能覆盖这些修改。继续？",
-      );
-      if (!ok) {
-        return;
-      }
-    }
-    setProfileBusy(true);
-    setStatus(null);
-    try {
-      const result = await invoke<EnsureProfileResult>(
-        "ensure_custom_engine_profile",
-      );
-      applyConfigFromDisk(result.config);
-      await refreshEngineCatalog(result.config);
-      setStatus({
-        tone: "ok",
-        text: result.message,
-      });
-      if (result.created) {
-        setEditingEngine("custom");
-      }
-    } catch (error) {
-      console.error(error);
-      setStatus({ tone: "err", text: String(error) });
-    } finally {
-      setProfileBusy(false);
-    }
-  }
-
   function updateGeneral<K extends keyof AppConfig["general"]>(
     key: K,
     value: AppConfig["general"][K],
@@ -585,17 +525,12 @@ export function SettingsApp() {
             <ServicePanel
               config={config}
               setConfig={setConfig}
-              paths={paths}
               engineList={engineList}
               editingEngine={editingEngine}
-              profileBusy={profileBusy}
               onEngineToggle={onEngineToggle}
               onSelectOcrEngine={selectOcrEngine}
               onOcrEngineToggle={onOcrEngineToggle}
               onToggleEngineEditor={toggleEngineEditor}
-              onOpenConfigFile={openConfigFile}
-              onReloadConfigFromDisk={reloadConfigFromDisk}
-              onAddCustomTemplate={addCustomTemplate}
             />
           ) : null}
 

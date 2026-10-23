@@ -27,17 +27,12 @@ export type HotkeyPanelProps = {
 export type ServicePanelProps = {
   config: AppConfig;
   setConfig: Dispatch<SetStateAction<AppConfig>>;
-  paths: AppPaths | null;
   engineList: EngineListItem[];
   editingEngine: string | null;
-  profileBusy: boolean;
   onEngineToggle: (engineId: string, turnOn: boolean) => void;
   onSelectOcrEngine: (engineId: string) => void;
   onOcrEngineToggle: (engineId: string, turnOn: boolean) => void;
   onToggleEngineEditor: (engineId: string) => void;
-  onOpenConfigFile: () => void;
-  onReloadConfigFromDisk: () => void;
-  onAddCustomTemplate: () => void;
 };
 
 export type DictionaryPanelProps = {

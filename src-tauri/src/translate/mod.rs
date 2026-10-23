@@ -2,7 +2,7 @@
 
 mod baidu;
 mod cloudflare;
-mod config_driven;
+mod deepl;
 mod credentials;
 mod google;
 mod microsoft;
@@ -197,7 +197,9 @@ pub fn build_http_client(follow_system_proxy: bool) -> Result<reqwest::Client, S
         builder = builder.no_proxy();
     }
 
-    builder.build().map_err(|e| format!("创建 HTTP 客户端失败: {e}"))
+    builder
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))
 }
 
 pub async fn translate_with_config(
@@ -223,12 +225,21 @@ pub fn request_from_config(
     text: String,
     target_lang: Option<String>,
 ) -> TranslationRequest {
-    let source_lang = normalize_lang_code(&config.general.source_lang);
+    let automatic = crate::lang::automatic_target(&text);
+    let source_lang = if automatic.is_some() {
+        "auto".to_string()
+    } else {
+        normalize_lang_code(&config.general.source_lang)
+    };
     let target = target_lang
         .as_deref()
         .map(normalize_lang_code)
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| normalize_lang_code(&config.general.target_lang));
+        .unwrap_or_else(|| {
+            automatic
+                .map(str::to_string)
+                .unwrap_or_else(|| normalize_lang_code(&config.general.target_lang))
+        });
     TranslationRequest {
         text,
         source_lang: if source_lang.is_empty() {
@@ -247,6 +258,27 @@ pub fn request_from_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn direction_defaults_and_manual_override() {
+        let mut config = AppConfig::default();
+        config.general.target_lang = "ja".into();
+        config.general.source_lang = "fr".into();
+        let english = request_from_config(&config, "Hello".into(), None);
+        assert_eq!(english.target_lang, "zh-CN");
+        assert_eq!(english.source_lang, "auto");
+        assert_eq!(
+            request_from_config(&config, "中文".into(), None).target_lang,
+            "en"
+        );
+        assert_eq!(
+            request_from_config(&config, "中文".into(), Some("ko".into())).target_lang,
+            "ko"
+        );
+        let other = request_from_config(&config, "français".into(), None);
+        assert_eq!(other.target_lang, "ja");
+        assert_eq!(other.source_lang, "fr");
+    }
 
     #[test]
     fn payload_loading_status() {

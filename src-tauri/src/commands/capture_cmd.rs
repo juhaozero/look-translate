@@ -28,6 +28,12 @@ pub fn run_ocr_and_show_popup(app: &AppHandle) {
 }
 
 fn finish_capture(app: &AppHandle, payload: CapturePayload) {
+    app.state::<TranslationState>().begin();
+    if let Some(state) = app.try_state::<window_cmd::PopupUiState>() {
+        if let Ok(mut mode) = state.input_mode.lock() {
+            *mode = false;
+        }
+    }
     if let Some(state) = app.try_state::<CaptureState>() {
         state.store(payload.clone());
     }

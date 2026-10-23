@@ -1,33 +1,17 @@
 # Look Translate
 
-Windows 划词翻译：选中文本后经可配置引擎出译文；短词可辅以本地词典；OCR 为独立路径。
+Windows 划词、输入与 OCR 翻译工具；短词可辅以本地词典；OCR 为独立取词路径。
 
-## Language
+## 翻译服务
 
-**Builtin Engine**:
-宿主内置、代码实现的翻译引擎（如 Microsoft、Google、Cloudflare、百度、有道）。仅在 Config-driven 的 Auth Mode 表达不了请求（尤其是签名）时新增，不为「热门厂商」默认内置。
-_Avoid_: 插件引擎、官方引擎（易与厂商「官方 API」混淆）
+支持 Microsoft、必应网页、Google、Google 网页、Cloudflare、百度、有道和 DeepL。服务由 Rust 内置适配器实现，设置页提供各服务专用的密钥字段。DeepL 使用官方 API，根据密钥选择 Free / Pro 地址，见 [DeepL 配置](docs/deepl.md)。
 
-**Config-driven Engine**:
-由配置描述请求/鉴权/响应抽取的通用引擎；加新厂商以改配置为主，不以改宿主代码为主。
-_Avoid_: 插件、脚本引擎、自建网关（那是另一条扩展路径）
+自定义 HTTP 引擎、Engine Profile 与请求模板已移除；不再解析或执行旧的 [engines.*] 配置。
 
-**Engine Active / Actives**:
-当前启用的翻译引擎标识列表（`engine.actives`）；可同时开启多个，划词时并行请求并在浮层分块展示。`engine.active` 保持为列表首项，兼容旧配置（仅有 `active` 时视为单引擎）。若 id 匹配 Builtin Engine 则走内置实现；否则在命名的 Config-driven 配置中查找。与 Builtin 同名的 Engine Profile 被忽略（Builtin 优先）。
-_Avoid_: 默认引擎（易与出厂默认混淆）
+## 启用服务
 
-**Engine Profile**:
-一份以 id 命名的 Config-driven 配置（如 `engines.custom`）；用户通过把该 id 加入 `engine.actives` 来启用。设置页可插入通用 HTTP 骨架、打开配置与填写说明（`docs/engine-profiles.md`，含 DeepL 等厂商示例）；展示名用可选 `label`。
-_Avoid_: 插件、扩展包、强制绑定某一商业引擎
+engine.actives 是当前并行翻译服务的有序列表；engine.active 保持为首项，以兼容只配置一个服务的旧文件。加载时过滤未知服务，若没有支持的服务则回退到 microsoft_web。
 
-**Auth Mode**:
-Config-driven Engine 请求鉴权的种类。第一版支持：`none`、`header`、`query`、`bearer`、`basic`。不含云厂商签名（如腾讯 TC3）。
-_Avoid_: API Key（太宽泛，应落到具体 Auth Mode）
+## 翻译方向与入口
 
-**Request Template**:
-Engine Profile 中描述 HTTP 方法、URL、Header、Query、Body 的配置；可用占位符（如 `{{text}}`、`{{source_lang}}`、`{{target_lang}}`、`{{extra.*}}`）和语言映射。
-_Avoid_: 脚本、插件逻辑
-
-**Response Extract**:
-从 JSON 响应中取出译文（及可选错误信息）的路径配置。
-_Avoid_: 正则扒全文（第一版不以之为正路）
+英文默认译为中文，中文默认译为英文，其他语言使用用户设置；浮层可手动选择目标语。输入翻译默认 Ctrl+Shift+T 唤起，点击翻译或按 Ctrl+Enter 提交。划词默认 Ctrl+Shift+D，OCR 默认 Ctrl+Shift+S，各快捷键可在设置中修改。

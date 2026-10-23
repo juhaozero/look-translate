@@ -1,3 +1,5 @@
+> 已被取代：自定义 HTTP 引擎已移除，当前仅支持内置服务；DeepL 配置见 [DeepL 翻译服务](../deepl.md)。以下保留历史决策。
+
 # Config-driven engines over plugins
 
 To add translation vendors without shipping a new host build each time, we extend via **Config-driven Engine** profiles in `config.toml`, not a plugin runtime or marketplace.
