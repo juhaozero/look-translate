@@ -387,6 +387,39 @@ active = "microsoft"
     }
 
     #[test]
+    fn load_or_init_preserves_existing_portable_data() {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let data_dir = std::env::temp_dir().join(format!("look-translate-preserve-{nanos}"));
+        let paths = ConfigPaths {
+            config_path: data_dir.join(CONFIG_FILE_NAME),
+            data_dir,
+        };
+        ensure_data_dir(&paths).unwrap();
+        let original = "# Keep user comments too\n[general]\ntarget_lang = \"ja\"\n[engine]\nactive = \"google\"\ngoogle_api_key = \"test-only-key\"\n";
+        fs::write(&paths.config_path, original).unwrap();
+        let dicts = paths.data_dir.join("dicts");
+        fs::create_dir_all(&dicts).unwrap();
+        fs::write(dicts.join("custom.mdx"), b"existing dictionary").unwrap();
+
+        let config = load_or_init(&paths).unwrap();
+        assert_eq!(config.general.target_lang, "ja");
+        assert_eq!(
+            config.engine.google_api_key.as_deref(),
+            Some("test-only-key")
+        );
+        assert_eq!(fs::read_to_string(&paths.config_path).unwrap(), original);
+        assert_eq!(
+            fs::read(dicts.join("custom.mdx")).unwrap(),
+            b"existing dictionary"
+        );
+
+        fs::remove_dir_all(&paths.data_dir).unwrap();
+    }
+
+    #[test]
     fn legacy_chinese_codes_normalize() {
         let raw = r#"
 [general]

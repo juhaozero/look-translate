@@ -10,7 +10,7 @@
 
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.0.7-blue)
+![Version](https://img.shields.io/badge/version-0.0.8-blue)
 ![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)
 
 ## 功能
@@ -30,6 +30,8 @@
 1. 打开 [Releases](https://github.com/juhaozero/look-translate/releases)
 2. 下载 **NSIS** 安装包（当前用户安装）或 MSI
 3. 安装后托盘常驻；首次运行会在可执行文件旁创建 `data/`
+
+重装到同一安装目录时，会直接沿用已有的 `data/`，不会覆盖配置、API Key 或词库，也不会把数据复制到 C 盘。卸载后同样保留 `data/`，如需清空请自行删除该目录。NSIS 安装包在重装和升级时直接覆盖程序，不会先运行旧版卸载器，也不会弹出旧版的数据备份提示。
 
 > 需要 WebView2 运行时。未安装时，安装包会尝试引导下载。
 

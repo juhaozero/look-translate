@@ -10,7 +10,7 @@ Select text and press a hotkey to translate. Supports parallel engines, optional
 
 ![Platform](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-0.0.7-blue)
+![Version](https://img.shields.io/badge/version-0.0.8-blue)
 ![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=white)
 
 ## Features
@@ -28,6 +28,8 @@ Select text and press a hotkey to translate. Supports parallel engines, optional
 1. Open [Releases](https://github.com/juhaozero/look-translate/releases)
 2. Download the **NSIS** installer (per-user) or MSI
 3. After install the app stays in the tray; first launch creates `data/` next to the executable
+
+Reinstall into the same directory to reuse the existing `data/` without overwriting settings, API keys, or dictionaries. Uninstall also leaves this folder in place; no data is copied to the C drive. Remove the folder manually only if you want to reset it. NSIS reinstalls and upgrades replace application files directly without invoking the old NSIS uninstaller or its data-backup prompt.
 
 > WebView2 is required. The installer can bootstrap it when missing.
 
