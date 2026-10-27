@@ -464,6 +464,7 @@ export function SettingsApp() {
       <aside className="settings-sidebar" aria-label="设置导航">
         <div className="settings-brand">
           <IconApp className="settings-brand-icon" />
+          <div className="settings-brand-copy"><strong>Look Translate</strong><span>重建巴别塔。</span></div>
         </div>
         <nav className="settings-nav">
           {NAV_ITEMS.map(({ id, label, Icon }) => (
@@ -474,6 +475,7 @@ export function SettingsApp() {
                 nav === id ? "settings-nav-item is-active" : "settings-nav-item"
               }
               aria-current={nav === id ? "page" : undefined}
+              aria-label={label}
               onClick={() => setNav(id)}
             >
               <Icon className="settings-nav-icon" />
@@ -481,13 +483,15 @@ export function SettingsApp() {
             </button>
           ))}
         </nav>
+        <div className="settings-sidebar-note"><span>文字之间，自有连接</span><small>{info?.version ? `v${info.version}` : "Look Translate"}</small></div>
       </aside>
 
       <div className="settings-main">
         <header className="settings-main-header">
           <div>
+            <span className="settings-page-kicker">LOOK TRANSLATE / {nav === "about" ? "ABOUT" : "PREFERENCES"}</span>
             <h1>{PAGE_TITLE[nav]}</h1>
-            {loading ? (
+            {nav === "about" ? null : loading ? (
               <p className="settings-subtle">加载中…</p>
             ) : saving || dirty ? (
               <p className="settings-subtle">自动保存中…</p>

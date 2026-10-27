@@ -125,20 +125,20 @@ export function OcrEngineIcon({
     >
       {engine === "tesseract" ? (
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="3" width="18" height="18" rx="4" fill="#0F766E" />
+          <rect x="3" y="3" width="18" height="18" rx="5" fill="var(--app-accent)" />
           <path
             d="M7 8h10M12 8v9M9.5 17h5"
-            stroke="#ECFDF5"
+            stroke="var(--app-on-accent)"
             strokeWidth="1.75"
             strokeLinecap="round"
           />
         </svg>
       ) : (
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="3" y="3" width="18" height="18" rx="4" fill="#1D4ED8" />
+          <rect x="3" y="3" width="18" height="18" rx="5" fill="var(--app-accent)" />
           <path
-            d="M7 9h10M7 12h7M7 15h9"
-            stroke="#EFF6FF"
+            d="M7 10V7h3m4 0h3v3m0 4v3h-3m-4 0H7v-3M10 12h4"
+            stroke="var(--app-on-accent)"
             strokeWidth="1.75"
             strokeLinecap="round"
           />

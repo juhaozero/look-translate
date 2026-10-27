@@ -1,0 +1,66 @@
+:root {
+  color-scheme: light;
+  --app-font: "Segoe UI", "PingFang SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  --app-bg: #f8faf8;
+  --app-sidebar: #edf3ef;
+  --app-surface: #ffffff;
+  --app-panel: #f0f5f2;
+  --app-text: #2c413b;
+  --app-strong: #203a32;
+  --app-muted: #597168;
+  --app-border: #dce6df;
+  --app-frame: #c5d6cc;
+  --app-accent: #376e5d;
+  --app-accent-hover: #2b5b4c;
+  --app-accent-soft: #e4efe8;
+  --app-focus-border: #7d9f8d;
+  --app-on-accent: #ffffff;
+  --app-danger: #a43d4b;
+  --app-error-bg: #fff2f3;
+  --app-error-border: #edd1d6;
+  --app-ok: #326b50;
+  --app-ok-bg: #eaf5ed;
+  --app-warning: #8a5a22;
+  --app-skeleton: #e0eae3;
+  --app-switch-off: #cad6ce;
+  --app-mark: #d5e5da;
+  --app-radius: 18px;
+  --app-radius-control: 10px;
+  --app-shadow: 0 3px 12px rgb(36 74 59 / 4%);
+  --app-focus: 0 0 0 2px rgb(55 110 93 / 20%);
+  --app-transition: 180ms ease;
+  --app-overlay: rgb(24 43 36 / 20%);
+  --app-scrim: rgb(24 43 36 / 42%);
+  --app-selection: rgb(125 159 141 / 12%);
+}
+
+/* All windows share the palette, including native form controls. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --app-bg: #1c2923;
+    --app-sidebar: #19251f;
+    --app-surface: #24332b;
+    --app-panel: #2a3a31;
+    --app-text: #e0e9e2;
+    --app-strong: #f0f5f1;
+    --app-muted: #a7bcad;
+    --app-border: #3e5246;
+    --app-frame: #526d5c;
+    --app-accent: #9ac9af;
+    --app-accent-hover: #b2dbc3;
+    --app-accent-soft: #314f3e;
+    --app-focus-border: #8fbaa0;
+    --app-on-accent: #1c3023;
+    --app-danger: #f2a7b0;
+    --app-error-bg: #422d33;
+    --app-error-border: #78515b;
+    --app-ok: #a0cdb0;
+    --app-ok-bg: #2c4233;
+    --app-warning: #dfbd87;
+    --app-skeleton: #3a5142;
+    --app-switch-off: #506358;
+    --app-mark: #385443;
+    --app-shadow: 0 3px 12px rgb(9 18 13 / 10%);
+  }
+}

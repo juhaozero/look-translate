@@ -7,6 +7,7 @@ import { OcrSelectApp } from "./ocr-select/OcrSelectApp";
 import "./shared/base.css";
 
 const kind = resolveWindowKind();
+document.documentElement.dataset.window = kind;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

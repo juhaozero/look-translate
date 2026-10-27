@@ -1,12 +1,9 @@
+@import "./theme.css";
+
 :root {
-  color: #1f2937;
-  background: #f3f4f6;
-  font-family:
-    "Segoe UI",
-    "PingFang SC",
-    "Microsoft YaHei UI",
-    "Microsoft YaHei",
-    sans-serif;
+  color: var(--app-text);
+  background: var(--app-bg);
+  font-family: var(--app-font);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -26,6 +23,8 @@ body,
 body {
   min-width: 320px;
 }
+
+::selection { background: var(--app-accent-soft); color: var(--app-strong); }
 
 button,
 input,

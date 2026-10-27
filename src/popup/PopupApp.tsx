@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { AppConfig, CapturePayload, TranslationPayload } from "../shared/types";
@@ -17,6 +17,8 @@ export function PopupApp() {
   const [inputTarget, setInputTarget] = useState("auto");
   const [submitting, setSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [isComposing, setIsComposing] = useState(false);
+  const autoTranslateTimerRef = useRef<number | null>(null);
   const inputModeRef = useRef(false);
   const sessionRef = useRef(0);
   const expectedTextRef = useRef<string | null>(null);
@@ -65,6 +67,7 @@ export function PopupApp() {
       expectedTextRef.current = null;
       setInputMode(true);
       setDraft("");
+      setIsComposing(false);
       setInputTarget("auto");
       setCapture(null);
       setTranslation(null);
@@ -111,6 +114,9 @@ export function PopupApp() {
       if (copyTimerRef.current !== null) {
         window.clearTimeout(copyTimerRef.current);
       }
+      if (autoTranslateTimerRef.current !== null) {
+        window.clearTimeout(autoTranslateTimerRef.current);
+      }
     };
   }, []);
 
@@ -146,14 +152,18 @@ export function PopupApp() {
     bodyRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [sourceText, inputMode]);
 
-  async function runTranslate(nextTarget: string, text = sourceText) {
-    if (!text?.trim() || submitting) {
+  const runTranslate = useCallback(async (nextTarget: string, text?: string) => {
+    if (!text?.trim()) {
       return;
+    }
+    if (autoTranslateTimerRef.current !== null) {
+      window.clearTimeout(autoTranslateTimerRef.current);
+      autoTranslateTimerRef.current = null;
     }
     setCopiedEngine(null);
     setRequestError(null);
     setSubmitting(true);
-    const session = sessionRef.current;
+    const session = ++sessionRef.current;
     expectedTextRef.current = text;
     try {
       await invoke<TranslationPayload>("translate_text", {
@@ -165,15 +175,39 @@ export function PopupApp() {
     } finally {
       if (session === sessionRef.current) setSubmitting(false);
     }
+  }, []);
+
+  useEffect(() => {
+    if (!inputMode || isComposing || !draft.trim()) return;
+    autoTranslateTimerRef.current = window.setTimeout(() => {
+      autoTranslateTimerRef.current = null;
+      void runTranslate(inputTarget, draft.trim());
+    }, 500);
+    return () => {
+      if (autoTranslateTimerRef.current !== null) {
+        window.clearTimeout(autoTranslateTimerRef.current);
+        autoTranslateTimerRef.current = null;
+      }
+    };
+  }, [inputMode, draft, inputTarget, isComposing, runTranslate]);
+
+  function invalidateInputTranslation() {
+    sessionRef.current += 1;
+    expectedTextRef.current = null;
+    setTranslation(null);
+    setRequestError(null);
+    setSubmitting(false);
+    setCopiedEngine(null);
   }
 
   async function onTargetLangChange(next: string) {
     if (inputMode) {
+      invalidateInputTranslation();
       setInputTarget(next);
       return;
     }
     setTargetLang(next);
-    await runTranslate(next);
+    await runTranslate(next, sourceText);
   }
 
   async function copyEngineText(engineId: string, text: string) {
@@ -200,8 +234,9 @@ export function PopupApp() {
     setCopiedEngine(null);
     try {
       await invoke("clear_translation_cache");
-      if (sourceText?.trim()) {
-        await runTranslate(targetLang);
+      const text = inputMode ? draft.trim() : sourceText;
+      if (text?.trim()) {
+        await runTranslate(inputMode ? inputTarget : targetLang, text);
       }
     } catch (error) {
       console.error(error);
@@ -232,7 +267,7 @@ export function PopupApp() {
           <span>目标语</span>
           <select
             value={inputMode ? inputTarget : targetLang}
-            disabled={!canTranslate || isLoading}
+            disabled={!canTranslate || (!inputMode && isLoading)}
             onChange={(event) => void onTargetLangChange(event.target.value)}
           >
             {inputMode ? <option value="auto">中英自动互译 / 默认语言</option> : null}
@@ -268,9 +303,16 @@ export function PopupApp() {
               id="translation-input"
               ref={inputRef}
               value={draft}
-              disabled={isLoading}
               placeholder="输入或粘贴文本…"
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                invalidateInputTranslation();
+                setDraft(event.target.value);
+              }}
+              onCompositionStart={() => {
+                invalidateInputTranslation();
+                setIsComposing(true);
+              }}
+              onCompositionEnd={() => setIsComposing(false)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
                   event.preventDefault();
@@ -279,8 +321,8 @@ export function PopupApp() {
               }}
             />
             <div className="popup-input-actions">
-              <span>Ctrl+Enter 翻译</span>
-              <button className="popup-btn" type="submit" disabled={!draft.trim() || isLoading}>
+              <span>停止输入后自动翻译 · Ctrl+Enter 立即翻译</span>
+              <button className="popup-btn" type="submit" disabled={!draft.trim() || isLoading || isComposing}>
                 {isLoading ? "翻译中…" : "翻译"}
               </button>
             </div>
@@ -387,7 +429,7 @@ export function PopupApp() {
             <button
               type="button"
               className="popup-btn"
-              onClick={() => void runTranslate(targetLang)}
+              onClick={() => void runTranslate(inputMode ? inputTarget : targetLang, inputMode ? draft.trim() : sourceText)}
             >
               重试
             </button>
