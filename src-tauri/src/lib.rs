@@ -76,6 +76,7 @@ pub fn run() {
             commands::translate_cmd::clear_translation_cache,
         ])
         .setup(move |app| {
+            app.manage(hotkey::HotkeyDispatcher::start(app.handle())?);
             if let Err(err) = hotkey::apply_from_state(app.handle()) {
                 eprintln!("[look-translate] hotkey apply failed on startup: {err}");
             }

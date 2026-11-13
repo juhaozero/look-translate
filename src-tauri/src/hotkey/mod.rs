@@ -4,18 +4,63 @@
 //! - OCR hotkey → screenshot OCR (separate path, never a clipboard fallback)
 
 use std::str::FromStr;
+use std::sync::mpsc::{self, SyncSender, TrySendError};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
-use crate::commands::capture_cmd;
+use crate::commands::{capture_cmd, window_cmd};
 use crate::config::{AppConfig, ConfigState};
 
 #[allow(dead_code)]
 pub const DEFAULT_TRANSLATE_HOTKEY: &str = "Ctrl+Shift+D";
 #[allow(dead_code)]
 pub const DEFAULT_OCR_HOTKEY: &str = "Ctrl+Shift+S";
+
+type HotkeyAction = fn(&AppHandle);
+
+pub struct HotkeyDispatcher(SyncSender<HotkeyAction>);
+
+impl HotkeyDispatcher {
+    pub fn start(app: &AppHandle) -> std::io::Result<Self> {
+        // Keep one pending action during a burst, without building a backlog of
+        // clipboard captures that could run after the user has switched apps.
+        let (sender, receiver) = mpsc::sync_channel::<HotkeyAction>(1);
+        let app = app.clone();
+        std::thread::Builder::new()
+            .name("hotkey-dispatch".into())
+            .spawn(move || {
+                while let Ok(action) = receiver.recv() {
+                    action(&app);
+                }
+            })?;
+        Ok(Self(sender))
+    }
+
+    fn dispatch(&self, action: HotkeyAction) {
+        // The plugin holds its shortcut mutex throughout this callback. Window
+        // calls can wait for the main thread, which also needs that mutex.
+        if let Err(TrySendError::Disconnected(_)) = self.0.try_send(action) {
+            eprintln!("[look-translate] hotkey dispatcher stopped");
+        }
+    }
+}
+
+fn on_release(action: HotkeyAction) -> impl Fn(&AppHandle, &Shortcut, ShortcutEvent) {
+    move |app, _shortcut, event| {
+        // Allow the shortcut key to be released before simulating Ctrl+C.
+        if event.state == ShortcutState::Released {
+            app.state::<HotkeyDispatcher>().dispatch(action);
+        }
+    }
+}
+
+fn show_input_popup(app: &AppHandle) {
+    if let Err(err) = window_cmd::open_input_popup(app) {
+        eprintln!("[look-translate] open input popup failed: {err}");
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,31 +99,19 @@ pub fn apply(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
     let translate_raw = config.general.hotkey_translate.trim().to_string();
     let ocr_raw = config.general.hotkey_ocr.trim().to_string();
 
-    gs.on_shortcut(translate, move |app, _shortcut, event| {
-        // Use Released so Ctrl/Shift from the hotkey are already up before Ctrl+C.
-        if event.state == ShortcutState::Released {
-            capture_cmd::run_capture_and_show_popup(app);
-        }
-    })
+    gs.on_shortcut(
+        translate,
+        on_release(capture_cmd::run_capture_and_show_popup),
+    )
     .map_err(|e| format!("注册划词热键 `{translate_raw}` 失败（可能被占用）: {e}"))?;
 
     if let Some(ocr) = ocr {
-        gs.on_shortcut(ocr, move |app, _shortcut, event| {
-            if event.state == ShortcutState::Released {
-                capture_cmd::run_ocr_and_show_popup(app);
-            }
-        })
-        .map_err(|e| format!("注册 OCR 热键 `{ocr_raw}` 失败（可能被占用）: {e}"))?;
+        gs.on_shortcut(ocr, on_release(capture_cmd::run_ocr_and_show_popup))
+            .map_err(|e| format!("注册 OCR 热键 `{ocr_raw}` 失败（可能被占用）: {e}"))?;
     }
 
-    gs.on_shortcut(input, move |app, _shortcut, event| {
-        if event.state == ShortcutState::Released {
-            if let Err(err) = crate::commands::window_cmd::open_input_popup(app) {
-                eprintln!("[look-translate] open input popup failed: {err}");
-            }
-        }
-    })
-    .map_err(|e| format!("注册输入翻译热键失败（可能被占用）: {e}"))?;
+    gs.on_shortcut(input, on_release(show_input_popup))
+        .map_err(|e| format!("注册输入翻译热键失败（可能被占用）: {e}"))?;
 
     Ok(())
 }
