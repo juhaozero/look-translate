@@ -18,7 +18,7 @@ use tauri::{
 use crate::cache::TranslationCacheState;
 use crate::capture::CaptureState;
 use crate::commands::app_info::{APP_DESCRIPTION, APP_NAME};
-use crate::commands::window_cmd::PopupUiState;
+use crate::commands::window_cmd::{PopupUiState, SettingsUiState};
 use crate::config::{load_or_init, resolve_paths, ConfigState};
 use crate::dictionary::DictionaryState;
 use crate::ocr::OcrSessionState;
@@ -42,6 +42,7 @@ pub fn run() {
         .manage(DictionaryState::default())
         .manage(OcrSessionState::default())
         .manage(PopupUiState::default())
+        .manage(SettingsUiState::default())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
@@ -51,6 +52,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::app_info::get_app_info,
             commands::window_cmd::show_settings_window,
+            commands::window_cmd::take_settings_nav,
+            commands::window_cmd::show_onboarding_window,
+            commands::window_cmd::complete_onboarding_window,
             commands::window_cmd::show_popup_window,
             commands::window_cmd::get_popup_input_mode,
             commands::window_cmd::hide_popup_window,
@@ -129,12 +133,29 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            // Fresh installs get a one-shot welcome; legacy configs skip it.
+            let show_onboarding = app
+                .state::<ConfigState>()
+                .config
+                .read()
+                .map(|c| !c.general.onboarding_done)
+                .unwrap_or(false);
+            if show_onboarding {
+                if let Err(err) = commands::window_cmd::open_onboarding(app.handle()) {
+                    eprintln!("[look-translate] open onboarding failed: {err}");
+                }
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } => {
                 // Keep process alive via tray; hide windows instead of destroying them.
-                let _ = window.hide();
+                if window.label() == "onboarding" {
+                    let _ = commands::window_cmd::complete_onboarding(window.app_handle());
+                } else {
+                    let _ = window.hide();
+                }
                 api.prevent_close();
             }
             WindowEvent::Focused(false) if window.label() == "popup" => {

@@ -7,7 +7,7 @@ use std::str::FromStr;
 use std::sync::mpsc::{self, SyncSender, TrySendError};
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};
 
 use crate::commands::{capture_cmd, window_cmd};
@@ -112,6 +112,11 @@ pub fn apply(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
 
     gs.on_shortcut(input, on_release(show_input_popup))
         .map_err(|e| format!("注册输入翻译热键失败（可能被占用）: {e}"))?;
+
+    // Settings may have queried status before registration finished.
+    if let Ok(snapshot) = status(app) {
+        let _ = app.emit("hotkeys-updated", &snapshot);
+    }
 
     Ok(())
 }

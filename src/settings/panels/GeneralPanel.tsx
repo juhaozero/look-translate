@@ -5,6 +5,7 @@ export function GeneralPanel({
   config,
   updateGeneral,
   onOpenPopupPreview,
+  onOpenOnboarding,
 }: GeneralPanelProps) {
   return (
     <>
@@ -32,6 +33,11 @@ export function GeneralPanel({
           label="预览划词浮层"
           actionLabel="打开浮层"
           onClick={() => void onOpenPopupPreview()}
+        />
+        <RowAction
+          label="重新查看引导"
+          actionLabel="打开引导"
+          onClick={() => void onOpenOnboarding()}
         />
       </section>
     </>

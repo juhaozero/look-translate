@@ -1,8 +1,8 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capability for popup, settings, and OCR select windows",
-  "windows": ["popup", "settings", "ocr-select"],
+  "description": "Default capability for popup, settings, onboarding, and OCR select windows",
+  "windows": ["popup", "settings", "onboarding", "ocr-select"],
   "permissions": [
     "core:default",
     "core:window:allow-show",

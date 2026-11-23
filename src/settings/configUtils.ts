@@ -27,6 +27,7 @@ export function normalizeConfig(config: AppConfig): AppConfig {
       hotkey_translate: config.general.hotkey_translate.trim() || "Ctrl+Shift+D",
       hotkey_input: config.general.hotkey_input?.trim() || "Ctrl+Shift+T",
       launch_at_startup: Boolean(config.general.launch_at_startup),
+      onboarding_done: Boolean(config.general.onboarding_done),
     },
     engine: {
       ...config.engine,

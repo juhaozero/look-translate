@@ -80,6 +80,9 @@ pub struct GeneralConfig {
     pub follow_system_proxy: bool,
     /// Launch Look Translate when the OS user logs in.
     pub launch_at_startup: bool,
+    /// First-run welcome dismissed. Missing in old configs → `true` via Default
+    /// (upgrade must not re-show); new `load_or_init` files set this to `false`.
+    pub onboarding_done: bool,
 }
 
 impl Default for GeneralConfig {
@@ -93,6 +96,8 @@ impl Default for GeneralConfig {
             hotkey_enabled: true,
             follow_system_proxy: true,
             launch_at_startup: false,
+            // Serde uses Default for missing TOML keys → legacy installs skip welcome.
+            onboarding_done: true,
         }
     }
 }
@@ -240,7 +245,9 @@ pub fn load_or_init(paths: &ConfigPaths) -> Result<AppConfig, String> {
     if paths.config_path.exists() {
         load_from_path(&paths.config_path)
     } else {
-        let config = AppConfig::default();
+        let mut config = AppConfig::default();
+        // Fresh install: show first-run welcome once.
+        config.general.onboarding_done = false;
         save_to_path(&paths.config_path, &config)?;
         Ok(config)
     }
@@ -379,11 +386,19 @@ active = "microsoft"
         let config = load_or_init(&paths).unwrap();
         assert!(paths.config_path.exists());
         assert_eq!(config.general.target_lang, "zh-CN");
+        assert!(!config.general.onboarding_done);
 
         let reloaded = load_from_path(&paths.config_path).unwrap();
         assert_eq!(reloaded, config);
 
         let _ = fs::remove_dir_all(&paths.data_dir);
+    }
+
+    #[test]
+    fn legacy_config_without_onboarding_flag_is_done() {
+        let raw = "[general]\ntarget_lang = \"zh-CN\"\n[engine]\nactive = \"microsoft_web\"\n";
+        let config = parse_config(raw).unwrap();
+        assert!(config.general.onboarding_done);
     }
 
     #[test]

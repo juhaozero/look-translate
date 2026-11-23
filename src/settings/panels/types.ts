@@ -11,6 +11,7 @@ export type GeneralPanelProps = {
   config: AppConfig;
   updateGeneral: UpdateGeneral;
   onOpenPopupPreview: () => void;
+  onOpenOnboarding: () => void;
 };
 
 export type TranslatePanelProps = {

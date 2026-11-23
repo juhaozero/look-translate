@@ -8,6 +8,8 @@ hotkey_input = "Ctrl+Shift+T"
 hotkey_enabled = true
 follow_system_proxy = true
 launch_at_startup = true
+# Fresh installs start with false and show the welcome window once.
+onboarding_done = true
 
 [engine]
 active = "microsoft"

@@ -14,6 +14,12 @@ pub struct PopupUiState {
     pub input_mode: Mutex<bool>,
 }
 
+/// Pending settings sidebar target (e.g. `service`) set before showing the window.
+#[derive(Default)]
+pub struct SettingsUiState {
+    pub pending_nav: Mutex<Option<String>>,
+}
+
 #[tauri::command]
 pub fn get_popup_input_mode(app: AppHandle) -> bool {
     app.state::<PopupUiState>()
@@ -43,10 +49,56 @@ fn show_window(window: &WebviewWindow) -> Result<(), String> {
 }
 
 pub fn open_settings(app: &AppHandle) -> Result<(), String> {
+    open_settings_at(app, None)
+}
+
+pub fn open_settings_at(app: &AppHandle, nav: Option<&str>) -> Result<(), String> {
+    if let Some(nav) = nav.map(str::trim).filter(|s| !s.is_empty()) {
+        if let Some(state) = app.try_state::<SettingsUiState>() {
+            if let Ok(mut guard) = state.pending_nav.lock() {
+                *guard = Some(nav.to_string());
+            }
+        }
+        let _ = app.emit("settings-navigate", nav);
+    }
+
     let window = app
         .get_webview_window("settings")
         .ok_or_else(|| "settings window not found".to_string())?;
     show_window(&window)
+}
+
+pub fn open_onboarding(app: &AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("onboarding")
+        .ok_or_else(|| "onboarding window not found".to_string())?;
+    let _ = window.center();
+    show_window(&window)
+}
+
+pub fn hide_onboarding(app: &AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("onboarding")
+        .ok_or_else(|| "onboarding window not found".to_string())?;
+    window.hide().map_err(|e| e.to_string())
+}
+
+/// Mark first-run welcome dismissed, persist, and hide the window.
+pub fn complete_onboarding(app: &AppHandle) -> Result<(), String> {
+    use crate::config::{save_to_path, ConfigState};
+
+    let state = app.state::<ConfigState>();
+    {
+        let mut guard = state
+            .config
+            .write()
+            .map_err(|_| "config lock poisoned".to_string())?;
+        if !guard.general.onboarding_done {
+            guard.general.onboarding_done = true;
+            save_to_path(&state.paths.config_path, &guard)?;
+        }
+    }
+    hide_onboarding(app)
 }
 
 pub fn open_popup(app: &AppHandle) -> Result<(), String> {
@@ -192,8 +244,26 @@ fn position_near_cursor(app: &AppHandle, window: &WebviewWindow) -> Result<(), S
 }
 
 #[tauri::command]
-pub fn show_settings_window(app: AppHandle) -> Result<(), String> {
-    open_settings(&app)
+pub fn show_settings_window(app: AppHandle, nav: Option<String>) -> Result<(), String> {
+    open_settings_at(&app, nav.as_deref())
+}
+
+/// Consume a pending settings nav target (set by `show_settings_window`).
+#[tauri::command]
+pub fn take_settings_nav(app: AppHandle) -> Option<String> {
+    let state = app.try_state::<SettingsUiState>()?;
+    let mut guard = state.pending_nav.lock().ok()?;
+    guard.take()
+}
+
+#[tauri::command]
+pub fn show_onboarding_window(app: AppHandle) -> Result<(), String> {
+    open_onboarding(&app)
+}
+
+#[tauri::command]
+pub fn complete_onboarding_window(app: AppHandle) -> Result<(), String> {
+    complete_onboarding(&app)
 }
 
 #[tauri::command]

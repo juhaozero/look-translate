@@ -94,6 +94,7 @@ export type AppConfig = {
     hotkey_enabled: boolean;
     follow_system_proxy: boolean;
     launch_at_startup: boolean;
+    onboarding_done: boolean;
   };
   engine: {
     active: string;
@@ -131,6 +132,7 @@ export function emptyConfig(): AppConfig {
       hotkey_enabled: true,
       follow_system_proxy: true,
       launch_at_startup: false,
+      onboarding_done: true,
     },
     engine: {
       active: "microsoft",

@@ -6,6 +6,8 @@ import {
   type ComponentType,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open } from "@tauri-apps/plugin-dialog";
 import type {
   AppConfig,
@@ -74,6 +76,13 @@ const PAGE_TITLE: Record<NavId, string> = {
   dictionary: "词典设置",
   about: "关于应用",
 };
+
+const NAV_IDS = new Set<string>(NAV_ITEMS.map((item) => item.id));
+
+function asNavId(value: string | null | undefined): NavId | null {
+  if (!value || !NAV_IDS.has(value)) return null;
+  return value as NavId;
+}
 
 const AUTO_SAVE_MS = 450;
 
@@ -183,9 +192,89 @@ export function SettingsApp() {
   }, []);
 
   useEffect(() => {
+    let disposed = false;
+    const unlistens: Array<() => void> = [];
+
+    void (async () => {
+      try {
+        const pending = await invoke<string | null>("take_settings_nav");
+        if (!disposed) {
+          const next = asNavId(pending ?? undefined);
+          if (next) setNav(next);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+
+      try {
+        unlistens.push(
+          await listen<string>("settings-navigate", (event) => {
+            const next = asNavId(event.payload);
+            if (next) setNav(next);
+            // Drop pending so a later remount does not re-apply the same jump.
+            void invoke("take_settings_nav").catch(() => undefined);
+          }),
+        );
+      } catch (error) {
+        console.error(error);
+      }
+
+      try {
+        unlistens.push(
+          await listen<HotkeyStatus>("hotkeys-updated", (event) => {
+            setHotkeyStatus(event.payload);
+          }),
+        );
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      for (const unlisten of unlistens) unlisten();
+    };
+  }, []);
+
+  useEffect(() => {
     if (nav !== "service") {
       setEditingEngine(null);
     }
+  }, [nav]);
+
+  async function refreshHotkeyStatus() {
+    try {
+      const statusInfo = await invoke<HotkeyStatus>("get_hotkey_status");
+      setHotkeyStatus(statusInfo);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  // Settings webview can call get_hotkey_status before startup registration
+  // finishes; refresh when landing on / focusing the hotkey page.
+  useEffect(() => {
+    if (nav === "hotkey") {
+      void refreshHotkeyStatus();
+    }
+  }, [nav]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void (async () => {
+      try {
+        unlisten = await getCurrentWindow().onFocusChanged(({ payload: focused }) => {
+          if (focused && nav === "hotkey") {
+            void refreshHotkeyStatus();
+          }
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    })();
+    return () => {
+      unlisten?.();
+    };
   }, [nav]);
 
   useEffect(() => {
@@ -261,6 +350,15 @@ export function SettingsApp() {
   async function openPopupPreview() {
     try {
       await invoke("show_popup_window");
+    } catch (error) {
+      console.error(error);
+      setStatus({ tone: "err", text: String(error) });
+    }
+  }
+
+  async function openOnboarding() {
+    try {
+      await invoke("show_onboarding_window");
     } catch (error) {
       console.error(error);
       setStatus({ tone: "err", text: String(error) });
@@ -507,6 +605,7 @@ export function SettingsApp() {
               config={config}
               updateGeneral={updateGeneral}
               onOpenPopupPreview={openPopupPreview}
+              onOpenOnboarding={openOnboarding}
             />
           ) : null}
 
